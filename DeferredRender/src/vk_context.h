@@ -1,4 +1,5 @@
-#pragma once
+#ifndef VK_CONTEXT_H
+#define VK_CONTEXT_H
 
 #include "vk_types.h"
 #include "vk_debug.h"
@@ -54,3 +55,5 @@ QueueFamilyIndices vk_find_queue_families(VkPhysicalDevice device, VkSurfaceKHR 
 
 u32 vk_find_memory_type(const VkContext& ctx, u32 type_filter,
                          VkMemoryPropertyFlags properties);
+
+#endif // VK_CONTEXT_H

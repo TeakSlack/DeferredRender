@@ -1,29 +1,40 @@
 #include "vk_debug.h"
+#include "logger.h"
 #include <cstring>
-#include <cstdio>
 #include <vector>
 
 // -------------------------------------------------------------------------
-// Debug callback — receives messages from the validation layer and prints
-// them. Severity levels map to: verbose (spam) / info / warning / error.
+// Debug callback — receives messages from the validation layer.
+// Severity maps directly onto spdlog levels so the terminal colors match
+// the rest of the engine output.
+// VERBOSE messages are only emitted when verbose mode is on, keeping the
+// default output clean.
 // -------------------------------------------------------------------------
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT      severity,
-    VkDebugUtilsMessageTypeFlagsEXT             /*type*/,
+    VkDebugUtilsMessageTypeFlagsEXT             type,
     const VkDebugUtilsMessengerCallbackDataEXT* data,
     void*                                       /*user_data*/)
 {
-    // Filter out verbose noise — only print info and above.
-    if (severity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-        return VK_FALSE;
+    // Prefix the message type so PERFORMANCE warnings stand out
+    const char* type_tag =
+        (type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) ? "[perf] " :
+        (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)  ? "[validation] " :
+                                                                    "";
 
-    const char* prefix =
-        (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)   ? "[VK ERROR]"   :
-        (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) ? "[VK WARNING]" :
-                                                                        "[VK INFO]";
+    if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        LOG_ERROR_TO("vulkan", "{}{}", type_tag, data->pMessage);
+    } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+        LOG_WARN_TO("vulkan", "{}{}", type_tag, data->pMessage);
+    } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+        // Info is fairly chatty — only show in verbose mode
+        LOG_DEBUG_TO("vulkan", "{}{}", type_tag, data->pMessage);
+    } else {
+        // VERBOSE level — pure noise unless you're debugging the driver
+        LOG_VERBOSE("{}{}", type_tag, data->pMessage);
+    }
 
-    fprintf(stderr, "%s %s\n", prefix, data->pMessage);
-    return VK_FALSE; // VK_TRUE would abort the call that triggered this — only useful for testing
+    return VK_FALSE;
 }
 
 // -------------------------------------------------------------------------
@@ -58,7 +69,7 @@ bool vk_check_validation_layer_support()
             if (strcmp(name, props.layerName) == 0) { found = true; break; }
         }
         if (!found) {
-            fprintf(stderr, "[vk_debug] Validation layer not found: %s\n", name);
+            LOG_ERROR_TO("vulkan", "Validation layer not available: {}", name);
             return false;
         }
     }

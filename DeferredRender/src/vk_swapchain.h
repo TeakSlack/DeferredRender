@@ -1,4 +1,5 @@
-#pragma once
+#ifndef VK_SWAPCHAIN_H
+#define VK_SWAPCHAIN_H
 
 #include "vk_types.h"
 #include "vk_context.h"
@@ -51,3 +52,6 @@ bool vk_swapchain_submit_and_present(
     const VkContext&    ctx,
     VkCommandBuffer     cmd,
     u32                 image_index);
+
+
+#endif // VK_SWAPCHAIN_H

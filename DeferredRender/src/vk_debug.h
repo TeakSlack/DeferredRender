@@ -1,4 +1,5 @@
-#pragma once
+#ifndef VK_DEBUG_H
+#define VK_DEBUG_H
 
 #include "vk_types.h"
 
@@ -37,3 +38,5 @@ void vk_destroy_debug_messenger(
 // -------------------------------------------------------------------------
 void vk_populate_debug_messenger_create_info(
     VkDebugUtilsMessengerCreateInfoEXT& info);
+
+#endif // VK_DEBUG_H

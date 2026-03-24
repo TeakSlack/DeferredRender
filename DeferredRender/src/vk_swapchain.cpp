@@ -1,5 +1,5 @@
 #include "vk_swapchain.h"
-#include <cstdio>
+#include "logger.h"
 #include <vector>
 #include <algorithm>
 
@@ -152,12 +152,25 @@ void vk_swapchain_create(VkSwapchain& sc, const VkContext& ctx, u32 width, u32 h
     create_image_views(sc, ctx.device);
     create_sync_objects(sc, ctx.device);
 
-    printf("[VkSwapchain] Created %u images at %ux%u\n",
-           actual_count, extent.width, extent.height);
+    const char* mode_str =
+        (present_mode == VK_PRESENT_MODE_MAILBOX_KHR)  ? "mailbox (triple-buffer)" :
+        (present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR) ? "immediate (no vsync)"    :
+                                                          "fifo (vsync)";
+
+    LOG_INFO_TO("vulkan", "Swapchain ready with {} images, {}x{}", actual_count,
+                extent.width, extent.height);
+    LOG_DEBUG_TO("vulkan", "  Present mode : {}", mode_str);
+    LOG_DEBUG_TO("vulkan", "  Image format : {}", (int)surface_format.format);
+    LOG_DEBUG_TO("vulkan", "  Color space  : {}", (int)surface_format.colorSpace);
+    LOG_DEBUG_TO("vulkan", "  Sharing mode : {}",
+                 create_info.imageSharingMode == VK_SHARING_MODE_CONCURRENT
+                 ? "concurrent (separate present queue)"
+                 : "exclusive (shared queue)");
 }
 
 void vk_swapchain_destroy(VkSwapchain& sc, const VkContext& ctx)
 {
+    LOG_DEBUG_TO("vulkan", "Destroying swapchain");
     for (u32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         vkDestroySemaphore(ctx.device, sc.image_available_semaphores[i], nullptr);
         vkDestroySemaphore(ctx.device, sc.render_finished_semaphores[i], nullptr);
@@ -174,6 +187,7 @@ void vk_swapchain_destroy(VkSwapchain& sc, const VkContext& ctx)
 
 void vk_swapchain_recreate(VkSwapchain& sc, const VkContext& ctx, u32 width, u32 height)
 {
+    LOG_INFO_TO("vulkan", "Recreating swapchain at {}x{}", width, height);
     vkDeviceWaitIdle(ctx.device);
     vk_swapchain_destroy(sc, ctx);
     vk_swapchain_create(sc, ctx, width, height);

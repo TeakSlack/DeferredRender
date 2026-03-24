@@ -29,7 +29,6 @@ project "DeferredRender"
         links
         {
             "glfw",
-            "vk-bootstrap"
         }
 
         filter "system:windows"

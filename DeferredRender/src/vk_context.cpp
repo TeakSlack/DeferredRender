@@ -1,7 +1,6 @@
 #include "vk_context.h"
 #include <GLFW/glfw3.h>
 #include <cstring>
-#include <cstdio>
 #include <vector>
 #include <algorithm>
 
@@ -46,7 +45,20 @@ void vk_context_init(VkContext& ctx, void* glfw_window)
     vkGetPhysicalDeviceProperties(ctx.physical_device, &ctx.device_props);
     vkGetPhysicalDeviceMemoryProperties(ctx.physical_device, &ctx.memory_props);
 
-    printf("[VkContext] Using GPU: %s\n", ctx.device_props.deviceName);
+    LOG_INFO_TO("vulkan", "Using GPU: {}", ctx.device_props.deviceName);
+
+    // Verbose: dump full device info useful for bug reports
+    LOG_DEBUG_TO("vulkan", "  Driver version : {:#010x}", ctx.device_props.driverVersion);
+    LOG_DEBUG_TO("vulkan", "  API version    : {}.{}.{}",
+        VK_VERSION_MAJOR(ctx.device_props.apiVersion),
+        VK_VERSION_MINOR(ctx.device_props.apiVersion),
+        VK_VERSION_PATCH(ctx.device_props.apiVersion));
+    LOG_DEBUG_TO("vulkan", "  Vendor ID      : {:#06x}", ctx.device_props.vendorID);
+    LOG_DEBUG_TO("vulkan", "  Max 2D image   : {}px",
+        ctx.device_props.limits.maxImageDimension2D);
+    LOG_DEBUG_TO("vulkan", "  Graphics queue : {}", ctx.queue_families.graphics);
+    LOG_DEBUG_TO("vulkan", "  Present queue  : {}", ctx.queue_families.present);
+    LOG_DEBUG_TO("vulkan", "  Transfer queue : {}", ctx.queue_families.transfer);
 }
 
 void vk_context_destroy(VkContext& ctx)
@@ -112,7 +124,9 @@ u32 vk_find_memory_type(const VkContext& ctx, u32 type_filter,
         if (type_match && prop_match)
             return i;
     }
-    fprintf(stderr, "[VkContext] Failed to find suitable memory type\n");
+    LOG_FATAL_TO("vulkan", "Failed to find suitable memory type "
+                 "(filter={:#010x}, required_props={:#010x})",
+                 type_filter, (u32)properties);
     abort();
 }
 
@@ -124,7 +138,8 @@ static void create_instance(VkContext& ctx)
 {
 #ifdef VK_ENABLE_VALIDATION
     if (!vk_check_validation_layer_support()) {
-        fprintf(stderr, "[VkContext] Validation layers requested but not available\n");
+        LOG_FATAL_TO("vulkan", "Validation layers requested but not available — "
+                     "install the Vulkan SDK or disable VK_ENABLE_VALIDATION");
         abort();
     }
 #endif
@@ -229,25 +244,32 @@ static void pick_physical_device(VkContext& ctx)
     u32 count = 0;
     vkEnumeratePhysicalDevices(ctx.instance, &count, nullptr);
     if (count == 0) {
-        fprintf(stderr, "[VkContext] No Vulkan-capable GPUs found\n");
+        LOG_FATAL_TO("vulkan", "No Vulkan-capable GPUs found on this system");
         abort();
     }
     std::vector<VkPhysicalDevice> devices(count);
     vkEnumeratePhysicalDevices(ctx.instance, &count, devices.data());
 
     // Filter unsuitable devices, then pick the highest-scoring one
-    int   best_score  = -1;
+    int best_score = -1;
     for (VkPhysicalDevice d : devices) {
-        if (!is_device_suitable(d, ctx.surface)) continue;
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(d, &props);
+        if (!is_device_suitable(d, ctx.surface)) {
+            LOG_DEBUG_TO("vulkan", "  Skipping GPU (unsuitable): {}", props.deviceName);
+            continue;
+        }
         int s = score_device(d);
+        LOG_DEBUG_TO("vulkan", "  GPU candidate: {} (score={})", props.deviceName, s);
         if (s > best_score) {
-            best_score         = s;
+            best_score          = s;
             ctx.physical_device = d;
         }
     }
 
     if (ctx.physical_device == VK_NULL_HANDLE) {
-        fprintf(stderr, "[VkContext] No suitable GPU found\n");
+        LOG_FATAL_TO("vulkan", "No suitable GPU found — requires swapchain support "
+                     "and a graphics + present queue");
         abort();
     }
 }
