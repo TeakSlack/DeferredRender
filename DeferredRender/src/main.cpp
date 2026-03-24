@@ -378,37 +378,25 @@ static VkPipeline create_triangle_pipeline(
 
 static AllocatedBuffer create_vertex_buffer(const VkContext& ctx, const void* vertex_data, VkDeviceSize data_size)
 {
-	AllocatedBuffer staging = vk_create_staging_buffer(
+	AllocatedBuffer vertex_buffer = vk_create_staged_buffer(
+		ctx,
 		ctx.allocator,
 		vertex_data,
-        data_size);
-
-	AllocatedBuffer vertex_buffer = vk_create_buffer(
-		ctx.allocator,
 		data_size,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    
-	vk_copy_buffer(ctx, staging.buffer, vertex_buffer.buffer, data_size);
-
-	vk_destroy_buffer(ctx.allocator, staging);
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
 	return vertex_buffer;
 }
 
 static AllocatedBuffer create_index_buffer(const VkContext& ctx, const void* index_data, VkDeviceSize data_size)
 {
-	AllocatedBuffer staging = vk_create_staging_buffer(
+	AllocatedBuffer result = vk_create_staged_buffer(
+		ctx,
 		ctx.allocator,
 		index_data,
-		data_size);
-	AllocatedBuffer index_buffer = vk_create_buffer(
-		ctx.allocator,
 		data_size,
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-	vk_copy_buffer(ctx, staging.buffer, index_buffer.buffer, data_size);
-	vk_destroy_buffer(ctx.allocator, staging);
-	return index_buffer;
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+	return result;
 }
 
 static void record_commands(VkCommandBuffer cmd, VkFramebuffer framebuffer, VkRenderPass render_pass, VkPipeline pipeline, VkExtent2D extent, VkBuffer vertex_buffer, VkBuffer index_buffer)

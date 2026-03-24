@@ -46,7 +46,14 @@ void vk_destroy_buffer(VmaAllocator allocator, AllocatedBuffer& buf);
 AllocatedBuffer vk_create_staging_buffer(VmaAllocator allocator,
     const void* data, VkDeviceSize size);
 
-void vk_copy_buffer(VkContext ctx, VkBuffer src, VkBuffer dst, VkDeviceSize size);
+AllocatedBuffer vk_create_staged_buffer(
+    const VkContext& ctx,
+	VmaAllocator allocator,
+	const void* data,
+	VkDeviceSize size,
+	VkBufferUsageFlags usage_flags);
+
+void vk_copy_buffer(const VkContext& ctx, VkBuffer src, VkBuffer dst, VkDeviceSize size);
 
 // -------------------------------------------------------------------------
 // Image helpers (used from Phase 4 onward, declared here for completeness)

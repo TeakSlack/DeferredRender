@@ -33,7 +33,7 @@ void vk_destroy_buffer(VmaAllocator allocator, AllocatedBuffer& buf) {
     buf.allocation = VK_NULL_HANDLE;
 }
 
-void vk_copy_buffer(VkContext ctx, VkBuffer src, VkBuffer dst, VkDeviceSize size) {
+void vk_copy_buffer(const VkContext& ctx, VkBuffer src, VkBuffer dst, VkDeviceSize size) {
     VkCommandBufferAllocateInfo alloc_info = {};
     alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     alloc_info.commandPool = ctx.transfer_cmd_pool;
@@ -88,6 +88,22 @@ AllocatedBuffer vk_create_staging_buffer(
     memcpy(staging.info.pMappedData, data, (size_t)size);
     // No explicit flush needed — HOST_COHERENT memory is always visible to GPU
     return staging;
+}
+
+AllocatedBuffer vk_create_staged_buffer(
+    const VkContext &ctx,
+    VmaAllocator allocator,
+    const void* data,
+    VkDeviceSize size,
+    VkBufferUsageFlags usage_flags)
+{
+	AllocatedBuffer staging = vk_create_staging_buffer(allocator, data, size);
+	AllocatedBuffer result = vk_create_buffer(
+		allocator, size,
+		usage_flags | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+	vk_copy_buffer(ctx, staging.buffer, result.buffer, size);
+	vk_destroy_buffer(allocator, staging);
+	return result;
 }
 
 AllocatedImage vk_create_image(
