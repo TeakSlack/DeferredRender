@@ -6,7 +6,7 @@
 #include <cstdlib>
 
 // logger.h is included here so every translation unit that includes
-// vk_types.h automatically gets the log macros — no extra include needed.
+// vk_types.h automatically gets the log macros - no extra include needed.
 #include "logger.h"
 
 // -------------------------------------------------------------------------
@@ -21,7 +21,7 @@ using f32  = float;
 using b32  = s32;
 
 // -------------------------------------------------------------------------
-// VK_CHECK — wraps every Vulkan call.
+// VK_CHECK - wraps every Vulkan call.
 // On failure: logs to the "vulkan" logger at Fatal level (with source
 // location always visible regardless of verbose mode), then aborts.
 // -------------------------------------------------------------------------

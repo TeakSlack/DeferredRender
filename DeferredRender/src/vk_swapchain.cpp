@@ -10,7 +10,7 @@
 static VkSurfaceFormatKHR choose_surface_format(
     const std::vector<VkSurfaceFormatKHR>& formats)
 {
-    // Prefer sRGB + B8G8R8A8 — this is the most common and gives correct
+    // Prefer sRGB + B8G8R8A8 - this is the most common and gives correct
     // gamma-corrected display output without manual gamma correction.
     for (const auto& f : formats) {
         if (f.format     == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -27,7 +27,7 @@ static VkPresentModeKHR choose_present_mode(
     // Mailbox = triple buffering, low latency, no tearing
     for (auto m : modes)
         if (m == VK_PRESENT_MODE_MAILBOX_KHR) return m;
-    // FIFO is always guaranteed to be supported — use as fallback (vsync)
+    // FIFO is always guaranteed to be supported - use as fallback (vsync)
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 

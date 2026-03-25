@@ -86,7 +86,7 @@ AllocatedBuffer vk_create_staging_buffer(
         VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
     memcpy(staging.info.pMappedData, data, (size_t)size);
-    // No explicit flush needed — HOST_COHERENT memory is always visible to GPU
+    // No explicit flush needed - HOST_COHERENT memory is always visible to GPU
     return staging;
 }
 
@@ -137,7 +137,7 @@ AllocatedImage vk_create_image(
     VK_CHECK(vmaCreateImage(allocator, &img_info, &alloc_create_info,
         &result.image, &result.allocation, &result.info));
 
-    // Create the image view immediately — it's almost always needed alongside
+    // Create the image view immediately - it's almost always needed alongside
     VkImageViewCreateInfo view_info = {};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.image = result.image;
@@ -161,4 +161,16 @@ void vk_destroy_image(VmaAllocator allocator, VkDevice device, AllocatedImage& i
     img.image = VK_NULL_HANDLE;
     img.view = VK_NULL_HANDLE;
     img.allocation = VK_NULL_HANDLE;
+}
+
+AllocatedImage create_depth_image(const VkContext& ctx,
+    VkExtent2D extent)
+{
+    return vk_create_image(
+        ctx.allocator,
+        ctx.device,
+        VK_FORMAT_D32_SFLOAT,
+        extent,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        VK_IMAGE_ASPECT_DEPTH_BIT);
 }

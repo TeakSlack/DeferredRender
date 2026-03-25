@@ -158,7 +158,7 @@ static void create_instance(VkContext& ctx)
 {
 #ifdef VK_ENABLE_VALIDATION
     if (!vk_check_validation_layer_support()) {
-        LOG_FATAL_TO("vulkan", "Validation layers requested but not available — "
+        LOG_FATAL_TO("vulkan", "Validation layers requested but not available - "
                      "install the Vulkan SDK or disable VK_ENABLE_VALIDATION");
         abort();
     }
@@ -211,7 +211,7 @@ static void setup_debug_messenger(VkContext& ctx)
 static void create_surface(VkContext& ctx, GLFWwindow* window)
 {
     // glfwCreateWindowSurface handles the platform-specific call
-    // (Win32, Xlib, Wayland, Metal — depending on build target)
+    // (Win32, Xlib, Wayland, Metal - depending on build target)
     VK_CHECK(glfwCreateWindowSurface(ctx.instance, window, nullptr, &ctx.surface));
 }
 
@@ -288,7 +288,7 @@ static void pick_physical_device(VkContext& ctx)
     }
 
     if (ctx.physical_device == VK_NULL_HANDLE) {
-        LOG_FATAL_TO("vulkan", "No suitable GPU found — requires swapchain support "
+        LOG_FATAL_TO("vulkan", "No suitable GPU found - requires swapchain support "
                      "and a graphics + present queue");
         abort();
     }
@@ -298,7 +298,7 @@ static void create_logical_device(VkContext& ctx)
 {
     ctx.queue_families = vk_find_queue_families(ctx.physical_device, ctx.surface);
 
-    // Collect unique queue family indices — some may share the same index
+    // Collect unique queue family indices - some may share the same index
     std::vector<u32> unique_families;
     auto add_unique = [&](u32 idx) {
         if (std::find(unique_families.begin(), unique_families.end(), idx) == unique_families.end())
@@ -319,7 +319,7 @@ static void create_logical_device(VkContext& ctx)
         queue_infos.push_back(qi);
     }
 
-    // Features — expand as you need them in later phases
+    // Features - expand as you need them in later phases
     VkPhysicalDeviceFeatures features = {};
     features.samplerAnisotropy = VK_TRUE;
     features.fillModeNonSolid  = VK_TRUE; // wireframe debug rendering

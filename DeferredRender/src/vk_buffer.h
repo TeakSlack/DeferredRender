@@ -6,7 +6,7 @@
 #include <vk_mem_alloc.h>
 
 // A VkBuffer + its VMA backing allocation, kept together.
-// Never separate them — you need both to free correctly.
+// Never separate them - you need both to free correctly.
 struct AllocatedBuffer {
     VkBuffer      buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -29,7 +29,7 @@ struct AllocatedImage {
 
 // General-purpose buffer creation.
 // usage_flags:    e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-// memory_usage:   VMA_MEMORY_USAGE_AUTO is almost always correct —
+// memory_usage:   VMA_MEMORY_USAGE_AUTO is almost always correct -
 //                 VMA picks DEVICE_LOCAL or HOST_VISIBLE based on usage hints.
 // alloc_flags:    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT for staging,
 //                 VMA_ALLOCATION_CREATE_MAPPED_BIT for persistently mapped UBOs.
@@ -67,5 +67,8 @@ AllocatedImage vk_create_image(
     VkImageAspectFlags  aspect);
 
 void vk_destroy_image(VmaAllocator allocator, VkDevice device, AllocatedImage& img);
+
+AllocatedImage create_depth_image(const VkContext& ctx,
+    VkExtent2D extent);
 
 #endif // VK_BUFFER_H

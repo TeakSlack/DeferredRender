@@ -9,7 +9,7 @@
 #include <string>
 
 // -------------------------------------------------------------------------
-// Log level aliases — insulate call-sites from spdlog enum names so you
+// Log level aliases - insulate call-sites from spdlog enum names so you
 // could swap the back-end later without touching every file.
 // -------------------------------------------------------------------------
 enum class LogLevel {
@@ -23,14 +23,14 @@ enum class LogLevel {
 };
 
 // -------------------------------------------------------------------------
-// Logger — thin singleton wrapper.
+// Logger - thin singleton wrapper.
 // Call Logger::init() once at startup, then use the macros below.
 // -------------------------------------------------------------------------
 class Logger {
 public:
     // Call before any log macro is used.
     // verbose=true drops the floor to Trace; false sets it to Info.
-    // log_file: optional path — empty string disables file output.
+    // log_file: optional path - empty string disables file output.
     static void init(bool verbose = false,
                      const std::string& log_file = "");
 
@@ -47,7 +47,7 @@ private:
 };
 
 // -------------------------------------------------------------------------
-// Macros — zero overhead when the level is below the active floor.
+// Macros - zero overhead when the level is below the active floor.
 // Uses the "core" logger by default.  Pass a name as the first argument
 // to route to a sub-logger: LOG_INFO_TO("render", "frame {}", n)
 // -------------------------------------------------------------------------

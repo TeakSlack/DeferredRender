@@ -4,7 +4,7 @@
 #include <vector>
 
 // -------------------------------------------------------------------------
-// Debug callback — receives messages from the validation layer.
+// Debug callback - receives messages from the validation layer.
 // Severity maps directly onto spdlog levels so the terminal colors match
 // the rest of the engine output.
 // VERBOSE messages are only emitted when verbose mode is on, keeping the
@@ -27,10 +27,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
     } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
         LOG_WARN_TO("vulkan", "{}{}", type_tag, data->pMessage);
     } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-        // Info is fairly chatty — only show in verbose mode
+        // Info is fairly chatty - only show in verbose mode
         LOG_DEBUG_TO("vulkan", "{}{}", type_tag, data->pMessage);
     } else {
-        // VERBOSE level — pure noise unless you're debugging the driver
+        // VERBOSE level - pure noise unless you're debugging the driver
         LOG_VERBOSE("{}{}", type_tag, data->pMessage);
     }
 
@@ -77,7 +77,7 @@ bool vk_check_validation_layer_support()
 }
 
 // -------------------------------------------------------------------------
-// vkCreateDebugUtilsMessengerEXT is an extension function — it must be
+// vkCreateDebugUtilsMessengerEXT is an extension function - it must be
 // looked up at runtime via vkGetInstanceProcAddr.
 // -------------------------------------------------------------------------
 VkResult vk_create_debug_messenger(
