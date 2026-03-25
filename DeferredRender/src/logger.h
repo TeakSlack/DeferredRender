@@ -68,6 +68,6 @@ private:
 
 // Verbose-only alias: compiles away to nothing when level >= Info.
 // Use for per-frame or high-frequency messages you never want in prod.
-#define LOG_VERBOSE(...) LOG_TRACE(__VA_ARGS__)
+#define LOG_VERBOSE(...) LOG_INFO_TO("verbose", __VA_ARGS__)
 
 #endif

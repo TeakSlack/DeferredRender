@@ -4,7 +4,6 @@
 #include <spdlog/spdlog.h>
 #include "pipeline_builder.h"
 
-// Constructor: initializes device, physical device, and queries device properties/features.
 PipelineBuilder::PipelineBuilder(PipelineType pipelineType)
 	: m_PipelineType(pipelineType)
 {

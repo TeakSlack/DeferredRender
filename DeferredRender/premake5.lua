@@ -32,9 +32,14 @@ project "DeferredRender"
             "glfw",
         }
 
+        -- Compile all GLSL shaders to SPIR-V before each C++ build.
+        -- The scripts pick up every *.vert / *.frag in src/shader/ automatically.
         filter "system:windows"
-            links 
-            { 
+            prebuildcommands {
+                'call "%{wks.location}scripts\\compile-shaders.bat"'
+            }
+            links
+            {
                 "vulkan-1", -- Vulkan lib for Windows ('vulkan-1.lib')
             }
 
@@ -44,10 +49,13 @@ project "DeferredRender"
             }
 
         filter "system:linux"
-            links 
-            { 
+            prebuildcommands {
+                'bash "%{wks.location}scripts/compile-shaders.sh"'
+            }
+            links
+            {
                 "vulkan", -- Vulkan library for Linux (`libvulkan.so`)
-            } 
+            }
 
         filter "configurations:Debug"
             defines { "DEBUG", "_DEBUG" }

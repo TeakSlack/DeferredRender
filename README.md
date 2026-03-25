@@ -96,7 +96,15 @@ DeferredRender/src/
 
 ## 📝 notes
 
-- shaders must be pre-compiled to `.spv` before running — use `glslc` from the vulkan sdk
+- shaders are compiled automatically on each build — no manual step needed
+- to compile shaders on their own without a full build, run the standalone script:
+  ```bash
+  # windows
+  scripts\compile-shaders.bat
+
+  # linux
+  bash scripts/compile-shaders.sh
+  ```
 - the renderer expects to be run from the project root so relative shader paths resolve correctly
 
 ---

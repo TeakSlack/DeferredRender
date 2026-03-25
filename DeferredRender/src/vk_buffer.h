@@ -64,11 +64,25 @@ AllocatedImage vk_create_image(
     VkFormat            format,
     VkExtent2D          extent,
     VkImageUsageFlags   usage,
-    VkImageAspectFlags  aspect);
+    VkImageAspectFlags  aspect,
+    u32                 mip_levels = 1);
 
 void vk_destroy_image(VmaAllocator allocator, VkDevice device, AllocatedImage& img);
 
+void vk_transition_image_layout(
+    VkCommandBuffer cmd,
+    VkImage         image,
+    VkImageLayout   old_layout,
+    VkImageLayout   new_layout,
+    u32             mip_levels = 1,
+    u32             layer_count = 1);
+
+
 AllocatedImage create_depth_image(const VkContext& ctx,
     VkExtent2D extent);
+
+void vk_immediate_submit(
+    const VkContext& ctx,
+    std::function<void(VkCommandBuffer)> fn);
 
 #endif // VK_BUFFER_H
