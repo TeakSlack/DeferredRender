@@ -11,3 +11,4 @@ bin
 bin-int
 **/Makefile
 build
+.claude
