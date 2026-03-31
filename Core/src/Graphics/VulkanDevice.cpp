@@ -52,7 +52,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
     if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
         std::cerr << "[Vulkan] " << tag << data->pMessage << '\n';
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-        std::cerr << "[Vulkan] " << tag << data->pMessage << '\n';
+		std::cerr << "[Vulkan] " << tag << data->pMessage << '\n';
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
         std::cout << "[Vulkan] " << tag << data->pMessage << '\n';
 
@@ -276,7 +276,11 @@ void VulkanDevice::CreateSwapchain(uint32_t width, uint32_t height)
     vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &image_count, m_SwapImages.data());
 
     CreateHandleForNativeTextures();
-    CreateSyncObjects();
+
+    // Do not recreate sync objects in case of window resize
+    // They are not tied to the swapchain and can be reused
+    if(m_RenderFinishedSemaphores.size() == 0)
+		CreateSyncObjects();
 }
 
 void VulkanDevice::RecreateSwapchain(uint32_t width, uint32_t height)

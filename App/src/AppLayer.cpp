@@ -10,6 +10,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 #include <Engine.h>
 #include <Platform/GLFWWindow.h>
+#include <Events/ApplicationEvents.h>
 
 #include <iostream>
 #include <fstream>
@@ -49,7 +50,7 @@ void AppLayer::CreatePipelineAndFramebuffers()
 	pipelineDesc.VS       = m_VertShader;
 	pipelineDesc.PS       = m_FragShader;
 	pipelineDesc.primType = nvrhi::PrimitiveType::TriangleList;
-	pipelineDesc.renderState.rasterState.setCullNone();
+	pipelineDesc.renderState.rasterState.setCullFront();
 	pipelineDesc.renderState.depthStencilState.depthTestEnable  = false;
 	pipelineDesc.renderState.depthStencilState.depthWriteEnable = false;
 
@@ -160,8 +161,17 @@ void AppLayer::OnUpdate(float /*deltaTime*/)
 	m_RenderDevice->Present();
 }
 
-void AppLayer::OnEvent(Event& /*event*/)
+void AppLayer::OnEvent(Event& event)
 {
-	// Window-close is detected via ShouldClose in OnUpdate.
-	// Add event handling here as needed.
+	EventDispatcher d(event);
+
+	d.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& e)
+		{
+			if (e.GetWindow() == m_WindowHandle)
+			{
+				m_RenderDevice->RecreateSwapchain(e.GetWidth(), e.GetHeight());
+				CreatePipelineAndFramebuffers();
+			}
+			return false; // return true to stop event propagation
+		});
 }
