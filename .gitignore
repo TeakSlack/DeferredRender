@@ -13,3 +13,5 @@ bin-int
 build
 .claude
 CLAUDE.md
+scripts/CMakeFiles
+scripts/vendor
