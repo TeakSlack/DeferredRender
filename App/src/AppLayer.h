@@ -7,8 +7,12 @@
 #include <Graphics/RenderBackend.h>
 #include <Render/IGpuDevice.h>
 #include <Render/ICommandContext.h>
-
+#include <Render/RenderView.h>
+#include <Render/SceneRenderer.h>
+#include <Render/SceneRenderSystem.h>
+#include <ECS/SceneManager.h>
 #include <Math/Vector3.h>
+#include <Asset/AssetSystem.h>
 
 #include <memory>
 #include <vector>
@@ -28,7 +32,6 @@ public:
 private:
 	static std::vector<uint8_t> LoadSPIRV(const char* path);
 	void CreatePipelineAndFramebuffers();
-	void CreateBuffers();
 
 	// Creates the correct IRenderDevice for the given backend.
 	std::unique_ptr<IRenderDevice> MakeRenderDevice(RenderBackend backend);
@@ -68,8 +71,6 @@ private:
 	std::unique_ptr<IRenderDevice>        m_RenderDevice;
 	IGpuDevice*                           m_GpuDevice = nullptr; // non-owning; owned by m_RenderDevice
 
-	GpuBuffer                             m_VertexBuffer;
-	GpuBuffer                             m_IndexBuffer;
 	GpuBuffer                             m_ConstantBuffer;
 	GpuShader                             m_VertShader;
 	GpuShader                             m_FragShader;

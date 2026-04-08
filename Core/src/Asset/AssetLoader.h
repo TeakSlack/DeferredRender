@@ -4,14 +4,12 @@
 #include <memory>
 #include <filesystem>
 
-// TODO: implement mesh-material loading for OBJ and FBX
-// and material loading using stb_image
 template<typename T>
 class IAssetLoader
 {
 public:
-	virtual ~IAssetLoader();
-	virtual std::unique_ptr<T> Load(const std::filesystem::path& path);
+	virtual ~IAssetLoader() = default;
+	virtual std::unique_ptr<T> Load(const std::filesystem::path& path) = 0;
 };
 
 #endif // ASSET_LOADER_H

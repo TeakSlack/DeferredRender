@@ -36,6 +36,7 @@ target_link_libraries(Core PUBLIC
     VendorIncludes
     glfw
     nvrhi
+    fastgltf
 )
 
 # ---------------------------------------------------------------------------

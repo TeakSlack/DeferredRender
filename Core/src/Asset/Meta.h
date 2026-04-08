@@ -2,13 +2,13 @@
 #define META_H
 
 #include <unordered_map>
+#include <filesystem>
 
 #include "Asset/Asset.h"
-#include "Util/UUID.h"
 
 struct MetaFile
 {
-	AssetID RootGuid = NullAssetId;
+	AssetID RootGuid;
 	std::unordered_map<std::string, AssetID> SubAssets;
 
 	bool HasSubAsset(const std::string& name) const
@@ -21,10 +21,13 @@ struct MetaFile
 		auto it = SubAssets.find(name);
 		if (it != SubAssets.end())
 			return it->second;
-		AssetID newId = GenerateUUID();
+		AssetID newId = AssetID::Generate();
 		SubAssets[name] = newId;
 		return newId;
 	}
+
+	static MetaFile LoadOrCreate(const std::filesystem::path& metaPath);
+	void Save(const std::filesystem::path& metaPath) const;
 };
 
 #endif // META_H

@@ -5,23 +5,25 @@
 #include <vector>
 #include <filesystem>
 
-struct GltfPackage
+struct RawGltfPackage
 {
-	std::vector<AssetHandle<MeshAsset>> Meshes;
-	std::vector<AssetHandle<MaterialAsset>> Materials;
-	std::vector<AssetHandle<TextureAsset>> Textures;
+	std::vector<MeshAsset> Meshes;
+	std::vector<MaterialAsset> Materials;
+	std::vector<TextureAsset> Textures;
 };
 
 class IGltfImporter
 {
+public:
 	virtual ~IGltfImporter() = default;
-	virtual GltfPackage Import(const std::filesystem::path& path) = 0;
+	virtual RawGltfPackage Import(const std::filesystem::path& path) = 0;
 };
 
 class FastGltfImporter : public IGltfImporter
 {
 public:
-	virtual GltfPackage Import(const std::filesystem::path& path) override;
+	// TODO: import materials & textures
+	RawGltfPackage Import(const std::filesystem::path& path) override;
 };
 
 #endif // GLTF_IMPORTER_H

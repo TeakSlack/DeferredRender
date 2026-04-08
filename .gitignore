@@ -15,3 +15,6 @@ build
 CLAUDE.md
 scripts/CMakeFiles
 scripts/vendor
+vendor/CMakeCache.txt
+vendor/CMakeFiles
+vendor/fastgltfConfigVersion.cmake

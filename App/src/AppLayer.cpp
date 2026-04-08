@@ -23,52 +23,16 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <Events/MouseEvents.h>
 
 #include <GLFW/glfw3.h>
-
 #include <Math/Vector3.h>
 #include <Math/Matrix4x4.h>
 #include <Util/Log.h>
+#include <Asset/AssetSystem.h>
+#include <ECS/SceneManager.h>
 
 #include <algorithm>
 #include <cmath>
 #include <fstream>
-
-
-struct Vertex {
-	float position[3];
-	float color[3];
-};
-
-// 24 vertices (4 per face) so each face can have its own colour
-static const Vertex vertices[] = {
-	// +Z
-	{{-0.5f, -0.5f,  0.5f}, {1,0,0}}, {{ 0.5f, -0.5f,  0.5f}, {1,0,0}},
-	{{ 0.5f,  0.5f,  0.5f}, {1,0,0}}, {{-0.5f,  0.5f,  0.5f}, {1,0,0}},
-	// -Z
-	{{ 0.5f, -0.5f, -0.5f}, {0,1,0}}, {{-0.5f, -0.5f, -0.5f}, {0,1,0}},
-	{{-0.5f,  0.5f, -0.5f}, {0,1,0}}, {{ 0.5f,  0.5f, -0.5f}, {0,1,0}},
-	// +X
-	{{ 0.5f, -0.5f,  0.5f}, {0,0,1}}, {{ 0.5f, -0.5f, -0.5f}, {0,0,1}},
-	{{ 0.5f,  0.5f, -0.5f}, {0,0,1}}, {{ 0.5f,  0.5f,  0.5f}, {0,0,1}},
-	// -X
-	{{-0.5f, -0.5f, -0.5f}, {1,1,0}}, {{-0.5f, -0.5f,  0.5f}, {1,1,0}},
-	{{-0.5f,  0.5f,  0.5f}, {1,1,0}}, {{-0.5f,  0.5f, -0.5f}, {1,1,0}},
-	// +Y
-	{{-0.5f,  0.5f,  0.5f}, {0,1,1}}, {{ 0.5f,  0.5f,  0.5f}, {0,1,1}},
-	{{ 0.5f,  0.5f, -0.5f}, {0,1,1}}, {{-0.5f,  0.5f, -0.5f}, {0,1,1}},
-	// -Y
-	{{-0.5f, -0.5f, -0.5f}, {1,0,1}}, {{ 0.5f, -0.5f, -0.5f}, {1,0,1}},
-	{{ 0.5f, -0.5f,  0.5f}, {1,0,1}}, {{-0.5f, -0.5f,  0.5f}, {1,0,1}},
-};
-
-static const uint32_t indices[] =
-{
-	0, 1, 2, 2, 3, 0,       // Front
-	4, 5, 6, 6, 7, 4,       // Back
-	8, 9, 10, 10, 11, 8,    // Left
-	12, 13, 14, 14, 15, 12, // Right
-	16, 17, 18, 18, 19, 16, // Bottom
-	20, 21, 22, 22, 23, 20  // Top
-};
+#include <string>
 
 // -------------------------------------------------------------------------
 // Helpers
@@ -110,10 +74,12 @@ void AppLayer::CreatePipelineAndFramebuffers()
 	layoutDesc.items = { BindingLayoutItem::ConstantBuffer(0, ShaderStage::Vertex) };
 	m_BindingLayout = m_GpuDevice->CreateBindingLayout(layoutDesc);
 
+	uint32_t vertexStride = (uint32_t)sizeof(Vertex);
+
 	// Input layout — two attributes from the same vertex buffer
 	std::vector<VertexAttributeDesc> attribs = {
-		{ "POSITION", GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, position), (uint32_t)sizeof(Vertex) },
-		{ "COLOR",    GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, color),    (uint32_t)sizeof(Vertex) },
+		{ "POSITION", GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, Position), vertexStride },
+		{ "COLOR",    GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, Normal),    vertexStride },
 	};
 	m_InputLayout = m_GpuDevice->CreateInputLayout(attribs, m_VertShader);
 
@@ -122,12 +88,13 @@ void AppLayer::CreatePipelineAndFramebuffers()
 	// Depth buffer sized to the current window
 	auto extent = m_WindowSystem.GetExtent(m_WindowHandle);
 	TextureDesc depthDesc;
-	depthDesc.width     = (uint32_t)extent.x;
-	depthDesc.height    = (uint32_t)extent.y;
-	depthDesc.format    = GpuFormat::D32;
-	depthDesc.dimension = TextureDimension::Texture2D;
-	depthDesc.usage     = TextureUsage::DepthStencil;
-	depthDesc.debugName = "Depth Buffer";
+	depthDesc.width                = (uint32_t)extent.x;
+	depthDesc.height               = (uint32_t)extent.y;
+	depthDesc.format               = GpuFormat::D32;
+	depthDesc.dimension            = TextureDimension::Texture2D;
+	depthDesc.usage                = TextureUsage::DepthStencil;
+	depthDesc.debugName            = "Depth Buffer";
+	depthDesc.optimizedClearDepth  = 1.0f;
 	m_DepthBuffer = m_GpuDevice->CreateTexture(depthDesc);
 
 	const auto& backBuffers = m_GpuDevice->GetBackBufferTextures();
@@ -146,6 +113,7 @@ void AppLayer::CreatePipelineAndFramebuffers()
 	pipelineDesc.inputLayout                   = m_InputLayout;
 	pipelineDesc.primType                      = PrimitiveType::TriangleList;
 	pipelineDesc.rasterizer.frontCCW           = true;
+	pipelineDesc.rasterizer.cullMode           = CullMode::Back;
 	pipelineDesc.depthStencil.depthTestEnable  = true;
 	pipelineDesc.depthStencil.depthWriteEnable = true;
 	pipelineDesc.depthStencil.depthFunc        = ComparisonFunc::Less;
@@ -156,37 +124,6 @@ void AppLayer::CreatePipelineAndFramebuffers()
 	BindingSetDesc setDesc;
 	setDesc.items = { BindingItem::ConstantBuffer(0, m_ConstantBuffer) };
 	m_BindingSet = m_GpuDevice->CreateBindingSet(setDesc, m_BindingLayout);
-}
-
-void AppLayer::CreateBuffers()
-{
-	// Vertex buffer
-	BufferDesc vbDesc;
-	vbDesc.byteSize  = sizeof(vertices);
-	vbDesc.usage     = BufferUsage::Vertex;
-	vbDesc.debugName = "Vertex Buffer";
-	m_VertexBuffer = m_GpuDevice->CreateBuffer(vbDesc);
-
-	// Index buffer
-	BufferDesc ibDesc;
-	ibDesc.byteSize  = sizeof(indices);
-	ibDesc.usage     = BufferUsage::Index;
-	ibDesc.debugName = "Index Buffer";
-	m_IndexBuffer = m_GpuDevice->CreateBuffer(ibDesc);
-
-	// Upload geometry via a one-shot command context
-	m_CommandContext->Open();
-	m_CommandContext->WriteBuffer(m_VertexBuffer, vertices, sizeof(vertices));
-	m_CommandContext->WriteBuffer(m_IndexBuffer,  indices,  sizeof(indices));
-	m_CommandContext->Close();
-	m_GpuDevice->ExecuteCommandContext(*m_CommandContext);
-
-	// Constant buffer (MVP matrix, updated every frame)
-	BufferDesc cbDesc;
-	cbDesc.byteSize  = sizeof(float) * 16;
-	cbDesc.usage     = BufferUsage::Constant;
-	cbDesc.debugName = "Constant Buffer";
-	m_ConstantBuffer = m_GpuDevice->CreateBuffer(cbDesc);
 }
 
 void AppLayer::InitGpuResources()
@@ -224,12 +161,23 @@ void AppLayer::InitGpuResources()
 
 	m_CommandContext = m_GpuDevice->CreateCommandContext();
 
-	CreateBuffers();
+	// Constant buffer — one 4×4 matrix, written per draw call
+	BufferDesc cbDesc;
+	cbDesc.byteSize  = sizeof(float) * 16;
+	cbDesc.usage     = BufferUsage::Constant;
+	cbDesc.debugName = "Constant Buffer";
+	m_ConstantBuffer = m_GpuDevice->CreateBuffer(cbDesc);
+
+	SceneRenderer::Get().SetDevice(m_GpuDevice);
+
 	CreatePipelineAndFramebuffers();
 }
 
 void AppLayer::DestroyGpuResources()
 {
+	// Release SceneRenderer GPU cache before the device is destroyed
+	SceneRenderer::Get().ReleaseGpuResources();
+
 	m_CommandContext.reset();
 	m_GpuDevice->DestroyBindingSet(m_BindingSet);        m_BindingSet     = {};
 	m_GpuDevice->DestroyGraphicsPipeline(m_Pipeline);    m_Pipeline       = {};
@@ -240,8 +188,6 @@ void AppLayer::DestroyGpuResources()
 	m_GpuDevice->DestroyInputLayout(m_InputLayout);      m_InputLayout    = {};
 	m_GpuDevice->DestroyBindingLayout(m_BindingLayout);  m_BindingLayout  = {};
 	m_GpuDevice->DestroyBuffer(m_ConstantBuffer);        m_ConstantBuffer = {};
-	m_GpuDevice->DestroyBuffer(m_IndexBuffer);           m_IndexBuffer    = {};
-	m_GpuDevice->DestroyBuffer(m_VertexBuffer);          m_VertexBuffer   = {};
 	m_GpuDevice->DestroyShader(m_FragShader);            m_FragShader     = {};
 	m_GpuDevice->DestroyShader(m_VertShader);            m_VertShader     = {};
 }
@@ -280,6 +226,19 @@ void AppLayer::SwitchBackend(RenderBackend next)
 
 void AppLayer::OnAttach()
 {
+	// Create the main scene and populate it with Sponza mesh entities
+	Scene* scene = SceneManager::Get().CreateScene("Main");
+	SceneManager::Get().SetActiveScene("Main");
+
+	GltfObject model = AssetSystem::Get().LoadGltf("models/Sponza.gltf");
+	for (auto& handle : model.Meshes)
+	{
+		Entity entity = scene->CreateEntity("SponzaMesh");
+		entity.AddComponent<MeshComponent>().Mesh = handle;
+		entity.AddComponent<MaterialComponent>(); // placeholder — no material assets yet
+		entity.GetComponent<TransformComponent>().Scale = Vector3(0.01f);
+	}
+
 	// Open window
 	WindowDesc desc;
 	desc.title  = "Triangle Demo";
@@ -383,8 +342,8 @@ void AppLayer::OnUpdate(float deltaTime)
 	if (m_Keys[GLFW_KEY_S]) wishDir -= front;
 	if (m_Keys[GLFW_KEY_D]) wishDir += right;
 	if (m_Keys[GLFW_KEY_A]) wishDir -= right;
-	if (m_Keys[GLFW_KEY_E]) wishDir.y += 1.f;
-	if (m_Keys[GLFW_KEY_Q]) wishDir.y -= 1.f;
+	if (m_Keys[GLFW_KEY_E]) wishDir.y -= 1.f;
+	if (m_Keys[GLFW_KEY_Q]) wishDir.y += 1.f;
 
 	float wishSpeed = m_MoveSpeed * (m_Keys[GLFW_KEY_LEFT_SHIFT] ? 3.f : 1.f);
 	if (Vector3::Magnitude(wishDir) > 0.f)
@@ -405,19 +364,29 @@ void AppLayer::OnUpdate(float deltaTime)
 
 	m_CamPos += m_CamVel * deltaTime;
 
-	// Row-vector convention: mvp = model * view * projection.
-	// My row-major storage produces the same bytes as GLM's column-major,
-	// so the existing shaders work unchanged.
-	Matrix4x4 model      = Matrix4x4::Identity();
 	Matrix4x4 view       = Matrix4x4::LookAt(m_CamPos, m_CamPos + front, Vector3(0.f, 1.f, 0.f));
 	Matrix4x4 projection = Matrix4x4::Perspective(60.0f, (float)fbWidth / (float)fbHeight, 0.1f, 500.0f);
-	projection[1][1] *= m_RenderDevice->GetClipSpaceYSign();
-	Matrix4x4 mvp = model * view * projection;
 
-	// ---- Record ----
+	// ---- Collect, cull, sort ----
+	Viewport vp;
+	vp.x = 0.f;  vp.y = 0.f;
+	vp.width    = (float)fbWidth;
+	vp.height   = (float)fbHeight;
+	vp.minDepth = 0.f;  vp.maxDepth = 1.f;
+
+	RenderView renderView = MakeRenderView(
+		m_CamPos, view, projection, vp, fb, 0.1f, 500.0f);
+
+	SceneRenderer& renderer = SceneRenderer::Get();
+	renderer.BeginFrame();
+
+	if (Scene* scene = SceneManager::Get().GetActiveScene())
+		SceneRenderSystem::CollectAndSubmit(*scene, m_CamPos, renderer);
+
+	renderer.RenderView(renderView);
+
+	// ---- Record draw calls ----
 	m_CommandContext->Open();
-
-	m_CommandContext->WriteBuffer(m_ConstantBuffer, &mvp, sizeof(mvp));
 
 	RenderPassDesc passDesc;
 	passDesc.framebuffer = fb;
@@ -428,12 +397,6 @@ void AppLayer::OnUpdate(float deltaTime)
 	m_CommandContext->BeginRenderPass(passDesc);
 
 	m_CommandContext->SetGraphicsPipeline(m_Pipeline);
-
-	Viewport vp;
-	vp.x = 0.f;  vp.y = 0.f;
-	vp.width    = (float)fbWidth;
-	vp.height   = (float)fbHeight;
-	vp.minDepth = 0.f;  vp.maxDepth = 1.f;
 	m_CommandContext->SetViewport(vp);
 
 	ScissorRect sr;
@@ -442,18 +405,30 @@ void AppLayer::OnUpdate(float deltaTime)
 	sr.height = (int)fbHeight;
 	m_CommandContext->SetScissor(sr);
 
-	m_CommandContext->SetVertexBuffer(0, m_VertexBuffer);
-	m_CommandContext->SetIndexBuffer(m_IndexBuffer, GpuFormat::R32_UINT);
-	m_CommandContext->SetBindingSet(m_BindingSet);
+	// Each visible packet gets its own MVP — world transform comes from the entity.
+	for (const RenderPacket* packet : renderer.GetVisiblePackets())
+	{
+		const SceneRenderer::GpuMesh* gpuMesh = renderer.GetGpuMesh(packet->Mesh);
+		if (!gpuMesh)
+			continue;
 
-	DrawIndexedArgs drawArgs;
-	drawArgs.indexCount = 36;
-	m_CommandContext->DrawIndexed(drawArgs);
+		Matrix4x4 mvp = packet->WorldTransform * view * projection;
+		m_CommandContext->WriteBuffer(m_ConstantBuffer, &mvp, sizeof(mvp));
+
+		m_CommandContext->SetVertexBuffer(0, gpuMesh->VertexBuffer);
+		m_CommandContext->SetIndexBuffer(gpuMesh->IndexBuffer, GpuFormat::R32_UINT);
+		m_CommandContext->SetBindingSet(m_BindingSet);
+
+		DrawIndexedArgs drawArgs;
+		drawArgs.indexCount = gpuMesh->IndexCount;
+		m_CommandContext->DrawIndexed(drawArgs);
+	}
 
 	m_CommandContext->EndRenderPass();
 	m_CommandContext->Close();
 
 	m_GpuDevice->ExecuteCommandContext(*m_CommandContext);
+	renderer.EndFrame();
 	m_RenderDevice->Present();
 }
 
@@ -524,7 +499,7 @@ void AppLayer::OnEvent(Event& event)
 		}
 
 		float dx = (e.GetX() - m_LastMouseX) * m_MouseSens;
-		float dy = (e.GetY() - m_LastMouseY) * m_MouseSens; // screen down = pitch up (inverted)
+		float dy = (e.GetY() - m_LastMouseY) * m_MouseSens;
 		m_LastMouseX = e.GetX();
 		m_LastMouseY = e.GetY();
 

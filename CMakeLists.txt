@@ -86,6 +86,12 @@ set(NVRHI_INSTALL     OFF            CACHE BOOL "" FORCE)
 add_subdirectory(vendor/NVRHI)
 
 # ---------------------------------------------------------------------------
+# fastgltf
+# ---------------------------------------------------------------------------
+set(FASTGLTF_COMPILE_AS_CPP20   ON  CACHE BOOL "" FORCE)
+add_subdirectory(vendor/fastgltf)
+
+# ---------------------------------------------------------------------------
 # Vendor include interface target
 # Linking against this propagates all third-party include paths.
 # The Vulkan SDK headers are only added when the Vulkan backend is on.
@@ -96,6 +102,8 @@ target_include_directories(VendorIncludes INTERFACE
     ${CMAKE_SOURCE_DIR}/vendor/spdlog/include
     ${CMAKE_SOURCE_DIR}/vendor/NVRHI/include
     ${CMAKE_SOURCE_DIR}/vendor/entt/src
+    ${CMAKE_SOURCE_DIR}/vendor/fastgltf/include
+    ${CMAKE_SOURCE_DIR}/vendor/stb
 )
 
 # ---------------------------------------------------------------------------

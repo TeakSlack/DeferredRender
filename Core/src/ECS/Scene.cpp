@@ -3,7 +3,7 @@
 
 Scene::Scene(std::string name)
     : m_Name(std::move(name))
-    , m_ID(UUID::Generate())
+    , m_ID(CoreUUID::Generate())
 {
 }
 

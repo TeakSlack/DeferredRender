@@ -513,10 +513,15 @@ GpuTexture NvrhiGpuDevice::CreateTexture(const TextureDesc& desc)
     {
         td.isRenderTarget  = true;
         td.initialState    = nvrhi::ResourceStates::DepthWrite;
+        td.clearValue      = nvrhi::Color(desc.optimizedClearDepth);
     }
     else if (desc.usage & TextureUsage::RenderTarget)
     {
-        td.initialState = nvrhi::ResourceStates::RenderTarget;
+        td.initialState    = nvrhi::ResourceStates::RenderTarget;
+        td.clearValue      = nvrhi::Color(desc.optimizedClearColor.r,
+                                           desc.optimizedClearColor.g,
+                                           desc.optimizedClearColor.b,
+                                           desc.optimizedClearColor.a);
     }
     else
     {

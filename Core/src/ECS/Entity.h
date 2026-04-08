@@ -8,7 +8,7 @@
 class Scene;
 class SceneManager;
 
-using SceneID = UUID;
+using SceneID = CoreUUID;
 
 // -------------------------------------------------------------------------
 // Entity — a typed handle into an entt::registry owned by a Scene.

@@ -5,10 +5,11 @@
 #include "Render/GpuTypes.h"
 #include "Render/Vertex.h"
 #include "Math/Vector3.h"
+#include "Util/UUID.h"
 #include "Math/Vector4.h"
 
-using AssetID = uint64_t;
-constexpr AssetID NullAssetId = 0;
+using AssetID = CoreUUID;
+inline const AssetID NullAssetId = CoreUUID{};
 
 template<typename T>
 struct AssetHandle
@@ -20,10 +21,9 @@ struct AssetHandle
 
 struct MeshAsset
 {
+	std::string           Name;
     std::vector<Vertex>   Vertices;
     std::vector<uint32_t> Indices;
-    GpuBuffer             VertexBuffer;
-    GpuBuffer             IndexBuffer;
     Vector3               BoundsMin, BoundsMax; // AABB for culling
 };
 
@@ -32,7 +32,6 @@ struct TextureAsset
     uint32_t             Width, Height;
     GpuTexture           Texture;
     std::vector<uint8_t> Data; // RGBA8 CPU copy (e.g. for editor thumbnails)
-    GpuTexture           Handle;
 };
 
 struct MaterialAsset
@@ -58,7 +57,6 @@ struct MaterialAsset
 struct ShaderAsset
 {
     std::vector<uint32_t> Code; // SPIR-V or DXIL bytecode
-    GpuShader             Shader;
 };
 
 #endif // ASSET_H

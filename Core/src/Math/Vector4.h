@@ -26,6 +26,24 @@ public:
 		return res;
 	}
 
+	Vector4 operator+=(const Vector4& other)
+	{
+		x += other.x;
+		y += other.y;
+		z += other.z;
+		w += other.w;
+		return *this;
+	}
+
+	Vector4 operator+=(const float scalar)
+	{
+		x += scalar;
+		y += scalar;
+		z += scalar;
+		w += scalar;
+		return *this;
+	}
+
 	// Subtraction operator overload (vector and scalar)
 	Vector4 operator-(const Vector4& other) const
 	{
@@ -39,6 +57,24 @@ public:
 		return res;
 	}
 
+	Vector4 operator-=(const Vector4& other)
+	{
+		x -= other.x;
+		y -= other.y;
+		z -= other.z;
+		w -= other.w;
+		return *this;
+	}
+
+	Vector4 operator-=(const float scalar)
+	{
+		x -= scalar;
+		y -= scalar;
+		z -= scalar;
+		w -= scalar;
+		return *this;
+	}
+
 	// Multiplication and division by scalar
 	Vector4 operator*(const float scalar) const
 	{
@@ -46,10 +82,28 @@ public:
 		return res;
 	}
 
+	Vector4 operator*=(const float scalar)
+	{
+		x *= scalar;
+		y *= scalar;
+		z *= scalar;
+		w *= scalar;
+		return *this;
+	}
+
 	Vector4 operator/(const float scalar) const
 	{
 		Vector4 res(x / scalar, y / scalar, z / scalar, w / scalar);
 		return res;
+	}
+
+	Vector4 operator/=(const float scalar)
+	{
+		x /= scalar;
+		y /= scalar;
+		z /= scalar;
+		w /= scalar;
+		return *this;
 	}
 
 	// Unary negation

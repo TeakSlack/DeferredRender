@@ -178,15 +178,20 @@ enum class TextureDimension { Texture1D, Texture2D, Texture3D, Texture2DArray, T
 
 struct TextureDesc
 {
-    uint32_t         width       = 1;
-    uint32_t         height      = 1;
-    uint32_t         depth       = 1;
-    uint32_t         mipLevels   = 1;
-    uint32_t         sampleCount = 1;
-    GpuFormat        format      = GpuFormat::RGBA8_UNORM;
-    TextureDimension dimension   = TextureDimension::Texture2D;
-    TextureUsage     usage       = TextureUsage::ShaderResource;
-    const char*      debugName   = nullptr;
+    uint32_t         width              = 1;
+    uint32_t         height             = 1;
+    uint32_t         depth              = 1;
+    uint32_t         mipLevels          = 1;
+    uint32_t         sampleCount        = 1;
+    GpuFormat        format             = GpuFormat::RGBA8_UNORM;
+    TextureDimension dimension          = TextureDimension::Texture2D;
+    TextureUsage     usage              = TextureUsage::ShaderResource;
+    const char*      debugName          = nullptr;
+    // Optimized clear value — must match what you pass to BeginRenderPass.
+    // D3D12 warns if these differ. Set for any RenderTarget or DepthStencil texture.
+    ClearValue       optimizedClearColor   = {};        // used when usage = RenderTarget
+    float            optimizedClearDepth   = 1.0f;      // used when usage = DepthStencil
+    uint8_t          optimizedClearStencil = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -317,7 +322,7 @@ struct FramebufferDesc
 struct RasterizerDesc
 {
     FillMode fillMode             = FillMode::Solid;
-    CullMode cullMode             = CullMode::Front;
+    CullMode cullMode             = CullMode::Back;
     bool     frontCCW             = true;
     int32_t  depthBias            = 0;
     float    slopeScaledDepthBias = 0.f;

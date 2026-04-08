@@ -12,6 +12,7 @@
 #include "../Events/ApplicationEvents.h"
 #include "../Events/KeyEvents.h"
 #include "../Events/MouseEvents.h"
+#include "Util/Log.h"
 
 // -------------------------------------------------------------------------
 // Handle packing helpers
@@ -38,6 +39,8 @@ void GLFWWindowSystem::Init()
 {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+	LOG_INFO_TO("window", "System initialized");
 }
 
 void GLFWWindowSystem::Shutdown()
@@ -51,6 +54,8 @@ void GLFWWindowSystem::Shutdown()
 	});
 
 	glfwTerminate();
+
+	LOG_INFO_TO("window", "System shutdown");
 }
 
 void GLFWWindowSystem::Tick(float)
@@ -88,6 +93,8 @@ WindowHandle GLFWWindowSystem::OpenWindow(const WindowDesc& desc)
 	glfwSetMouseButtonCallback      (glfwWindow, OnGLFWMouseButton);
 	glfwSetCursorPosCallback        (glfwWindow, OnGLFWCursorPos);
 	glfwSetScrollCallback           (glfwWindow, OnGLFWScroll);
+
+	LOG_INFO_TO("window", "Window created, {}x{}", desc.width, desc.height);
 
 	return handle;
 }

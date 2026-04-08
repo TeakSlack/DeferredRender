@@ -47,17 +47,17 @@ void MessageCallback::message(nvrhi::MessageSeverity severity, const char* text)
     switch (severity)
     {
     case nvrhi::MessageSeverity::Fatal:
-        CORE_ERROR(text);
+        LOG_ERROR_TO("D3D12Device", text);
         abort();
         break;
     case nvrhi::MessageSeverity::Error:
-        CORE_ERROR(text);
+        LOG_ERROR_TO("D3D12Device", text);
         break;
     case nvrhi::MessageSeverity::Warning:
-        CORE_WARN(text);
+        LOG_WARN_TO("D3D12Device", text);
         break;
     case nvrhi::MessageSeverity::Info:
-        CORE_INFO(text);
+        LOG_INFO_TO("D3D12Device", text);
         break;
     }
 }
@@ -127,11 +127,11 @@ void D3D12Device::Impl::EnableDebugLayer()
     if (SUCCEEDED(hr))
     {
         debugController->EnableDebugLayer();
-        CORE_INFO("[D3D12Device] D3D12 debug layer enabled");
+        LOG_INFO_TO("D3D12Device",  "D3D12 debug layer enabled");
     }
     else
     {
-        CORE_WARN("[D3D12Device] D3D12 debug layer not available (HRESULT 0x{:08X})", (uint32_t)hr);
+        LOG_WARN_TO("D3D12Device", "D3D12 debug layer not available (HRESULT 0x{:08X})", (uint32_t)hr);
     }
 }
 
@@ -182,13 +182,13 @@ void D3D12Device::Impl::PickAdapter()
             char name[128] = {};
             WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1,
                                 name, sizeof(name), nullptr, nullptr);
-            CORE_INFO("[D3D12Device] Adapter selected: {} ({} MB VRAM)",
+            LOG_WARN_TO("D3D12Device", "Adapter selected : {} ({} MB VRAM)",
                       name, desc.DedicatedVideoMemory / (1024 * 1024));
             return;
         }
     }
 
-    CORE_ERROR("[D3D12Device] No suitable D3D12 adapter found (feature level 12.0)");
+    LOG_ERROR_TO("D3D12Device", "No suitable D3D12 adapter found (feature level 12.0)");
     abort();
 }
 
@@ -212,7 +212,7 @@ void D3D12Device::Impl::InitDevice()
         }
     }
 
-    CORE_INFO("[D3D12Device] D3D12 device created (feature level 12.0)");
+    LOG_INFO_TO("D3D12Device", "D3D12 device created (feature level 12.0)");
 }
 
 // =========================================================================
@@ -267,7 +267,7 @@ void D3D12Device::Impl::CreateFence()
     m_FenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     if (!m_FenceEvent)
     {
-        CORE_ERROR("[D3D12Device] CreateEvent for fence failed");
+        LOG_ERROR_TO("D3D12Device", "CreateEvent for fence failed");
         abort();
     }
 
@@ -364,11 +364,11 @@ IGpuDevice* D3D12Device::CreateDevice()
     i.m_NvrhiDevice = nvrhi::d3d12::createDevice(desc);
     if (!i.m_NvrhiDevice)
     {
-        CORE_ERROR("[D3D12Device] nvrhi::d3d12::createDevice() returned null");
+        LOG_ERROR_TO("D3D12Device", "nvrhi::d3d12::createDevice() returned null");
         abort();
     }
 
-    CORE_INFO("[D3D12Device] NVRHI D3D12 device created");
+    LOG_INFO_TO("D3D12Device", "NVRHI D3D12 device created");
     i.m_GpuDevice = std::make_unique<NvrhiGpuDevice>(i.m_NvrhiDevice.Get());
     return i.m_GpuDevice.get();
 }
@@ -440,7 +440,7 @@ void D3D12Device::CreateSwapchain(uint32_t w, uint32_t h)
 
     i.WrapBackBuffers();
 
-    CORE_INFO("[D3D12Device] Swapchain created ({}x{}, DXGI_FORMAT {})",
+    LOG_INFO_TO("D3D12Device", "Swapchain created({}x{}, DXGI_FORMAT{})",
               w, h, (int)i.m_SwapFormat);
 }
 
@@ -468,7 +468,7 @@ void D3D12Device::RecreateSwapchain(uint32_t width, uint32_t height)
 
     i.WrapBackBuffers();
 
-    CORE_INFO("[D3D12Device] Swapchain resized to {}x{}", width, height);
+    LOG_INFO_TO("D3D12Device", "Swapchain resized to{}x{}", width, height);
 }
 
 // =========================================================================
@@ -498,12 +498,12 @@ void D3D12Device::Present()
     if (hr == DXGI_ERROR_DEVICE_REMOVED)
     {
         HRESULT reason = i.m_Device->GetDeviceRemovedReason();
-        CORE_ERROR("[D3D12Device] Device removed during Present (reason: 0x{:08X})", (uint32_t)reason);
+        LOG_ERROR_TO("D3D12Device","Device removed during Present(reason: 0x{:08X})", (uint32_t)reason);
         abort();
     }
     else if (FAILED(hr))
     {
-        CORE_ERROR("[D3D12Device] IDXGISwapChain3::Present failed: HRESULT 0x{:08X}", (uint32_t)hr);
+        LOG_ERROR_TO("D3D12Device","IDXGISwapChain3::Present failed : HRESULT 0x{:08X}", (uint32_t)hr);
         abort();
     }
 
