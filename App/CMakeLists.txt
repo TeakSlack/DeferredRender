@@ -1,17 +1,10 @@
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 file(GLOB_RECURSE APP_HEADERS CONFIGURE_DEPENDS "src/*.h")
 
-# HLSL shader sources — shown in VS Solution Explorer but not compiled as C++
-file(GLOB APP_SHADERS CONFIGURE_DEPENDS "shaders/*.hlsl")
-
-add_executable(App ${APP_SOURCES} ${APP_HEADERS} ${APP_SHADERS})
-
-# Prevent MSVC from trying to compile HLSL files as C++
-set_source_files_properties(${APP_SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
+add_executable(App ${APP_SOURCES} ${APP_HEADERS})
 
 # Mirror filesystem structure in VS filters
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "src" FILES ${APP_SOURCES} ${APP_HEADERS})
-source_group("shaders" FILES ${APP_SHADERS})
 
 # Core brings in Core/src, VendorIncludes, and backend libs transitively.
 # Vulkan::Vulkan is linked directly here because AppLayer.cpp owns the
@@ -22,7 +15,7 @@ target_link_libraries(App PRIVATE
     glfw
 )
 
-if(CORE_VULKAN)
+if(COMPILE_WITH_VULKAN)
     target_link_libraries(App PRIVATE Vulkan::Vulkan)
 endif()
 
@@ -79,7 +72,7 @@ else()
     set(SHADER_OUTPUTS)
 
     # ---- Vertex shader ----
-    if(CORE_VULKAN)
+    if(COMPILE_WITH_VULKAN)
         add_custom_command(
             OUTPUT  "${SHADER_DIR}/triangle_vert.spv"
             COMMAND "${DXC_EXECUTABLE}"
@@ -94,7 +87,7 @@ else()
         list(APPEND SHADER_OUTPUTS "${SHADER_DIR}/triangle_vert.spv")
     endif()
 
-    if(CORE_DX12)
+    if(COMPILE_WITH_DX12)
         add_custom_command(
             OUTPUT  "${SHADER_DIR}/triangle_vert.cso"
             COMMAND "${DXC_EXECUTABLE}"
@@ -109,7 +102,7 @@ else()
     endif()
 
     # ---- Pixel shader ----
-    if(CORE_VULKAN)
+    if(COMPILE_WITH_VULKAN)
         add_custom_command(
             OUTPUT  "${SHADER_DIR}/triangle_frag.spv"
             COMMAND "${DXC_EXECUTABLE}"
@@ -124,7 +117,7 @@ else()
         list(APPEND SHADER_OUTPUTS "${SHADER_DIR}/triangle_frag.spv")
     endif()
 
-    if(CORE_DX12)
+    if(COMPILE_WITH_DX12)
         add_custom_command(
             OUTPUT  "${SHADER_DIR}/triangle_frag.cso"
             COMMAND "${DXC_EXECUTABLE}"
@@ -138,7 +131,14 @@ else()
         list(APPEND SHADER_OUTPUTS "${SHADER_DIR}/triangle_frag.cso")
     endif()
 
-    add_custom_target(AppShaders ALL DEPENDS ${SHADER_OUTPUTS})
+    file(GLOB APP_SHADERS CONFIGURE_DEPENDS "${SHADER_DIR}/*.hlsl")
+    # Prevent VS from invoking FXC on these files — compilation is handled
+    # exclusively by the add_custom_command targets above (DXC via CMake).
+    # VS_TOOL_OVERRIDE "None" is required; HEADER_FILE_ONLY alone does not
+    # suppress VS's built-in HLSL item handler.
+    set_source_files_properties(${APP_SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
+    add_custom_target(AppShaders ALL SOURCES ${APP_SHADERS} DEPENDS ${SHADER_OUTPUTS})
+    source_group("shaders" FILES ${APP_SHADERS})
     set_property(TARGET AppShaders PROPERTY FOLDER "Shaders")
     add_dependencies(App AppShaders)
 endif()

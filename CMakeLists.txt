@@ -46,23 +46,23 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ---------------------------------------------------------------------------
 # Backend selection
-# These options are the single source of truth: they drive NVRHI's own
-# backend flags, control which device .cpp files are compiled in Core, and
-# define the CORE_VULKAN / CORE_DX12 macros used by application code.
+# These options drive NVRHI's own backend flags, control which device
+# .cpp files are compiled in Core, and define the COMPILE_WITH_VULKAN /
+# COMPILE_WITH_DX12 macros used by engine and application code.
 # Must be declared before add_subdirectory(vendor/NVRHI).
 # ---------------------------------------------------------------------------
-option(CORE_VULKAN "Enable the Vulkan rendering backend"        ON)
-option(CORE_DX12   "Enable the Direct3D 12 rendering backend"  OFF)
+option(COMPILE_WITH_VULKAN "Enable the Vulkan rendering backend"       ON)
+option(COMPILE_WITH_DX12   "Enable the Direct3D 12 rendering backend" OFF)
 
-if(NOT CORE_VULKAN AND NOT CORE_DX12)
-    message(FATAL_ERROR "At least one rendering backend must be enabled (CORE_VULKAN or CORE_DX12).")
+if(NOT COMPILE_WITH_VULKAN AND NOT COMPILE_WITH_DX12)
+    message(FATAL_ERROR "At least one rendering backend must be enabled (COMPILE_WITH_VULKAN or COMPILE_WITH_DX12).")
 endif()
 
 # ---------------------------------------------------------------------------
 # Vulkan SDK — only required when the Vulkan backend is on
 # Respects the VULKAN_SDK environment variable set by the setup scripts.
 # ---------------------------------------------------------------------------
-if(CORE_VULKAN)
+if(COMPILE_WITH_VULKAN)
     find_package(Vulkan REQUIRED)
     message(STATUS "Vulkan ${Vulkan_VERSION} found at ${Vulkan_INCLUDE_DIRS}")
 endif()
@@ -79,9 +79,9 @@ add_subdirectory(vendor/glfw)
 # ---------------------------------------------------------------------------
 # nvrhi — enable only the backends that are selected above
 # ---------------------------------------------------------------------------
-set(NVRHI_WITH_VULKAN ${CORE_VULKAN} CACHE BOOL "" FORCE)
-set(NVRHI_WITH_DX12   ${CORE_DX12}   CACHE BOOL "" FORCE)
-set(NVRHI_WITH_DX11   OFF            CACHE BOOL "" FORCE)
+set(NVRHI_WITH_VULKAN ${COMPILE_WITH_VULKAN} CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX12   ${COMPILE_WITH_DX12}   CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX11   OFF                    CACHE BOOL "" FORCE)
 set(NVRHI_INSTALL     OFF            CACHE BOOL "" FORCE)
 add_subdirectory(vendor/NVRHI)
 
@@ -94,11 +94,11 @@ add_subdirectory(vendor/fastgltf)
 # ---------------------------------------------------------------------------
 # Vendor include interface target
 # Linking against this propagates all third-party include paths.
-# The Vulkan SDK headers are only added when the Vulkan backend is on.
+# Vulkan SDK headers are only added when the Vulkan backend is on.
 # ---------------------------------------------------------------------------
 add_library(VendorIncludes INTERFACE)
 target_include_directories(VendorIncludes INTERFACE
-    $<$<BOOL:${CORE_VULKAN}>:${Vulkan_INCLUDE_DIRS}>
+    $<$<BOOL:${COMPILE_WITH_VULKAN}>:${Vulkan_INCLUDE_DIRS}>
     ${CMAKE_SOURCE_DIR}/vendor/spdlog/include
     ${CMAKE_SOURCE_DIR}/vendor/NVRHI/include
     ${CMAKE_SOURCE_DIR}/vendor/entt/src

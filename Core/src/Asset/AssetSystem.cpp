@@ -50,41 +50,17 @@ GltfObject AssetSystem::LoadGltf(const std::filesystem::path& path)
 {
     std::filesystem::path fullPath = std::filesystem::weakly_canonical(m_AssetRoot / path);
 
-    // --- Deduplication ---
-    auto it = m_PathToID.find(fullPath);
-    if (it != m_PathToID.end())
+    // --- Deduplication via cached GltfObject ---
+    auto cachedIt = m_GltfObjects.find(fullPath);
+    if (cachedIt != m_GltfObjects.end())
     {
-        LOG_INFO_TO("asset", "GLTF already loaded : {}", fullPath.string());
-        
-        // Check is assets are already in memory
-        bool loaded = false;
-        for (auto& [id, record] : m_Assets)
-        {
-            if (record.sourcePath == fullPath)
-            {
-                loaded = true;
-                break;
-            }
-        }
-
-        if (loaded)
-        {
-            GltfObject result;
-            for (auto& [id, record] : m_Assets)
-            {
-				if (record.sourcePath == fullPath && record.type == typeid(MeshAsset))
-				{
-					result.Meshes.push_back(AssetHandle<MeshAsset>{ id });
-				}
-            }
-            return result;
-        }
+        LOG_INFO_TO("asset", "GLTF already loaded: {}", fullPath.string());
+        return cachedIt->second;
     }
 
-    // --- Fresh import ---
     if (!std::filesystem::exists(fullPath))
     {
-        LOG_INFO_TO("asset", "File not found: {}", fullPath.string());
+        LOG_WARN_TO("asset", "File not found: {}", fullPath.string());
         return {};
     }
 
@@ -94,13 +70,65 @@ GltfObject AssetSystem::LoadGltf(const std::filesystem::path& path)
     RawGltfPackage rawPackage = importer.Import(fullPath);
 
     GltfObject result;
-    for (auto& mesh : rawPackage.Meshes)
+
+    // 1. Register textures — build an index-to-handle table for material binding.
+    //    Textures are not assigned a sourcePath since they have no independent file
+    //    identity within this load path; the GltfObject cache handles deduplication.
+    std::vector<AssetHandle<TextureAsset>> textureHandles;
+    textureHandles.reserve(rawPackage.Textures.size());
+    for (size_t i = 0; i < rawPackage.Textures.size(); ++i)
     {
-        AssetID meshId = meta.GetOrCreate("Mesh:" + mesh.Name);
-        result.Meshes.push_back(AddAssetWithID<MeshAsset>(meshId, std::move(mesh), fullPath));
+        AssetID id = meta.GetOrCreate("Texture:" + std::to_string(i));
+        auto handle = AddAssetWithID<TextureAsset>(id, std::move(rawPackage.Textures[i]), {});
+        textureHandles.push_back(handle);
+        result.Textures.push_back(handle);
+    }
+
+    // 2. Register materials, resolving image indices to texture handles.
+    auto bindTex = [&](int idx) -> AssetHandle<TextureAsset> {
+        if (idx >= 0 && idx < static_cast<int>(textureHandles.size()))
+            return textureHandles[idx];
+        return {};
+    };
+
+    for (auto& rawMat : rawPackage.Materials)
+    {
+        MaterialAsset mat;
+        mat.BaseColorFactor     = rawMat.BaseColorFactor;
+        mat.MetallicFactor      = rawMat.MetallicFactor;
+        mat.RoughnessFactor     = rawMat.RoughnessFactor;
+        mat.EmissiveFactor      = rawMat.EmissiveFactor;
+        mat.NormalScale         = rawMat.NormalScale;
+        mat.OcclusionStrength   = rawMat.OcclusionStrength;
+        mat.Alpha               = rawMat.Alpha;
+        mat.AlphaCutoff         = rawMat.AlphaCutoff;
+        mat.DoubleSided         = rawMat.DoubleSided;
+
+        mat.AlbedoMap            = bindTex(rawMat.AlbedoMapIndex);
+        mat.NormalMap            = bindTex(rawMat.NormalMapIndex);
+        mat.MetallicRoughnessMap = bindTex(rawMat.MetallicRoughnessIndex);
+        mat.OcclusionMap         = bindTex(rawMat.OcclusionMapIndex);
+        mat.EmissiveMap          = bindTex(rawMat.EmissiveMapIndex);
+
+        AssetID id = meta.GetOrCreate("Material:" + rawMat.Name);
+        result.Materials.push_back(AddAssetWithID<MaterialAsset>(id, std::move(mat), {}));
+    }
+
+    // 3. Register meshes and build the parallel MeshMaterials array.
+    result.MeshMaterials.resize(rawPackage.Meshes.size());
+    for (size_t i = 0; i < rawPackage.Meshes.size(); ++i)
+    {
+        AssetID id = meta.GetOrCreate("Mesh:" + rawPackage.Meshes[i].Name);
+        result.Meshes.push_back(AddAssetWithID<MeshAsset>(id, std::move(rawPackage.Meshes[i]), fullPath));
+
+        int matIdx = (i < rawPackage.MeshMaterialIndices.size())
+                   ? rawPackage.MeshMaterialIndices[i] : -1;
+        if (matIdx >= 0 && matIdx < static_cast<int>(result.Materials.size()))
+            result.MeshMaterials[i] = result.Materials[matIdx];
     }
 
     meta.Save(fullPath);
+    m_GltfObjects[fullPath] = result;
     return result;
 }
 
@@ -119,7 +147,7 @@ void AssetSystem::ScanMetaFiles()
 		std::filesystem::path relativePath = std::filesystem::relative(entry.path(), cacheRoot);
 		std::filesystem::path sourcePath = m_AssetRoot / relativePath.parent_path() / relativePath.stem();
 
-		MetaFile meta = MetaFile::LoadOrCreate(entry.path());
+		MetaFile meta = MetaFile::LoadOrCreate(sourcePath);
 		if (!meta.RootGuid.IsValid())
 		{
 			LOG_WARN_TO("asset", "Failed to load meta file: {}", entry.path().string());

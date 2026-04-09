@@ -49,7 +49,10 @@ private:
 
 struct GltfObject
 {
-	std::vector<AssetHandle<MeshAsset>> Meshes;
+	std::vector<AssetHandle<MeshAsset>>     Meshes;
+	std::vector<AssetHandle<MaterialAsset>> MeshMaterials; // parallel to Meshes — the material for each mesh
+	std::vector<AssetHandle<MaterialAsset>> Materials;     // all materials in the file, by glTF index
+	std::vector<AssetHandle<TextureAsset>>  Textures;
 };
 
 class AssetSystem : public IEngineSubmodule
@@ -102,9 +105,10 @@ private:
 		AssetState                            state = AssetState::Failed;
 	};
 
-	std::unordered_map<AssetID, AssetRecord>            m_Assets;
-	std::unordered_map<std::filesystem::path, AssetID>  m_PathToID;
-	std::filesystem::path                               m_AssetRoot;
+	std::unordered_map<AssetID, AssetRecord>                   m_Assets;
+	std::unordered_map<std::filesystem::path, AssetID>        m_PathToID;
+	std::unordered_map<std::filesystem::path, GltfObject>     m_GltfObjects;
+	std::filesystem::path                                      m_AssetRoot;
 
 	std::unique_ptr<ThreadPool>  m_ThreadPool;
 	std::queue<CompletedJob>     m_CompletedJobs;
