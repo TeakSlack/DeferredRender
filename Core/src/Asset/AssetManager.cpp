@@ -1,16 +1,10 @@
-#include "AssetSystem.h"
+#include "AssetManager.h"
 #include "Meta.h"
 #include "GltfImporter.h"
 #include "Util/Log.h"
 #include <thread>
 
-AssetSystem& AssetSystem::Get()
-{
-    static AssetSystem s_Instance;
-	return s_Instance;
-}
-
-void AssetSystem::Init()
+void AssetManager::Init()
 {
 	m_AssetRoot = std::filesystem::current_path() / "Assets";
 
@@ -23,14 +17,14 @@ void AssetSystem::Init()
 	LOG_INFO_TO("asset", "initialized. Asset root {} ({} workers)", m_AssetRoot.string(), workerCount);
 }
 
-void AssetSystem::Shutdown()
+void AssetManager::Shutdown()
 {
 	// Destroy the pool first — joins all workers so no CompletedJob writes can
 	// race with the m_Assets destructor below.
 	m_ThreadPool.reset();
 }
 
-void AssetSystem::Tick(float)
+void AssetManager::Tick(float)
 {
 	std::lock_guard lock(m_CompletedMutex);
 	while (!m_CompletedJobs.empty())
@@ -46,7 +40,7 @@ void AssetSystem::Tick(float)
 	}
 }
 
-GltfObject AssetSystem::LoadGltf(const std::filesystem::path& path)
+GltfObject AssetManager::LoadGltf(const std::filesystem::path& path)
 {
     std::filesystem::path fullPath = std::filesystem::weakly_canonical(m_AssetRoot / path);
 
@@ -132,7 +126,7 @@ GltfObject AssetSystem::LoadGltf(const std::filesystem::path& path)
     return result;
 }
 
-void AssetSystem::ScanMetaFiles()
+void AssetManager::ScanMetaFiles()
 {
 	auto cacheRoot = m_AssetRoot / ".cache";
 	if (!std::filesystem::exists(cacheRoot))

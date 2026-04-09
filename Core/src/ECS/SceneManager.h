@@ -20,10 +20,7 @@
 class SceneManager : public IEngineSubmodule
 {
 public:
-    static SceneManager& Get();
-
-    SceneManager(const SceneManager&)            = delete;
-    SceneManager& operator=(const SceneManager&) = delete;
+    SceneManager() : IEngineSubmodule("SceneManager") {}
 
     // IEngineSubmodule
     void Init()      override {}
@@ -48,8 +45,6 @@ public:
     Scene* GetScene(SceneID id);
 
 private:
-    SceneManager() : IEngineSubmodule("SceneManager") {}
-
     std::unordered_map<std::string, std::unique_ptr<Scene>> m_Scenes;
     std::unordered_map<SceneID, Scene*>                     m_ScenesByID;
     Scene* m_ActiveScene = nullptr;
@@ -65,38 +60,45 @@ private:
 template<typename T, typename... Args>
 T& Entity::AddComponent(Args&&... args)
 {
-    return SceneManager::Get().GetScene(m_SceneID)->AddComponent<T>(*this, std::forward<Args>(args)...);
+    SceneManager* sceneManager = Engine::Get().GetSubmodule<SceneManager>();
+    return sceneManager->GetScene(m_SceneID)->AddComponent<T>(*this, std::forward<Args>(args)...);
 }
 
 template<typename T>
 T& Entity::GetComponent()
 {
-    return SceneManager::Get().GetScene(m_SceneID)->GetComponent<T>(*this);
+    SceneManager* sceneManager = Engine::Get().GetSubmodule<SceneManager>();
+    return sceneManager->GetScene(m_SceneID)->GetComponent<T>(*this);
 }
 
 template<typename T>
 const T& Entity::GetComponent() const
 {
-    return SceneManager::Get().GetScene(m_SceneID)->GetComponent<T>(*this);
+    SceneManager* sceneManager = Engine::Get().GetSubmodule<SceneManager>();
+    return sceneManager->GetScene(m_SceneID)->GetComponent<T>(*this);
 }
 
 template<typename T>
 bool Entity::HasComponent() const
 {
-    return SceneManager::Get().GetScene(m_SceneID)->HasComponent<T>(*this);
+    SceneManager* sceneManager = Engine::Get().GetSubmodule<SceneManager>();
+    return sceneManager->GetScene(m_SceneID)->HasComponent<T>(*this);
 }
 
 template<typename T>
 void Entity::RemoveComponent()
 {
-    SceneManager::Get().GetScene(m_SceneID)->RemoveComponent<T>(*this);
+    SceneManager* sceneManager = Engine::Get().GetSubmodule<SceneManager>();
+    sceneManager->GetScene(m_SceneID)->RemoveComponent<T>(*this);
 }
 
 inline bool Entity::IsValid() const
 {
     if (!m_SceneID.IsValid() || m_EntityID == entt::null)
         return false;
-    Scene* scene = SceneManager::Get().GetScene(m_SceneID);
+
+	SceneManager* sceneManager = Engine::Get().GetSubmodule<SceneManager>();
+    Scene* scene = sceneManager->GetScene(m_SceneID);
     return scene && scene->IsValid(*this);
 }
 

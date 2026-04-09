@@ -1,15 +1,9 @@
 #include "Render/SceneRenderer.h"
-#include "Asset/AssetSystem.h"
+#include "Asset/AssetManager.h"
 #include "Render/Vertex.h"
 #include "Util/Log.h"
 
 #include <algorithm>
-
-SceneRenderer& SceneRenderer::Get()
-{
-    static SceneRenderer s_Instance;
-    return s_Instance;
-}
 
 void SceneRenderer::SetDevice(IGpuDevice* device)
 {
@@ -92,7 +86,8 @@ bool SceneRenderer::EnsureMeshUploaded(AssetHandle<MeshAsset> handle)
     if (m_MeshCache.count(handle.id))
         return true; // already uploaded
 
-    MeshAsset* asset = AssetSystem::Get().GetAsset(handle);
+	AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
+    MeshAsset* asset = assetManager->GetAsset(handle);
     if (!asset)
         return false; // still pending or failed
 
@@ -130,8 +125,6 @@ bool SceneRenderer::EnsureMeshUploaded(AssetHandle<MeshAsset> handle)
     m_GpuDevice->ExecuteCommandContext(*m_UploadContext);
     m_GpuDevice->WaitForIdle();
 
-    CORE_INFO("[SceneRenderer] Uploaded mesh '{}' ({} verts, {} indices)",
-        asset->Name, asset->Vertices.size(), asset->Indices.size());
 
     m_MeshCache.emplace(handle.id, std::move(gpuMesh));
     return true;

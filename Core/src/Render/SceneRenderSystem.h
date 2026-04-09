@@ -3,7 +3,7 @@
 
 #include "ECS/Scene.h"
 #include "ECS/Components.h"
-#include "Asset/AssetSystem.h"
+#include "Asset/AssetManager.h"
 #include "Render/RenderPacket.h"
 #include "Render/SceneRenderer.h"
 
@@ -40,7 +40,8 @@ namespace SceneRenderSystem
             // Skip entities whose assets haven't finished loading yet.
             // Submit() already guards against Pending meshes, but checking
             // here avoids building bounds for an asset we can't use.
-            MeshAsset* meshData = AssetSystem::Get().GetAsset(mesh.Mesh);
+			AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
+            MeshAsset* meshData = assetManager->GetAsset(mesh.Mesh);
             if (!meshData)
                 return;
 

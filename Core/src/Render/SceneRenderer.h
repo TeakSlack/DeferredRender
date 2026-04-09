@@ -41,10 +41,7 @@ public:
         uint32_t  IndexCount = 0;
     };
 
-    static SceneRenderer& Get();
-
-    SceneRenderer(const SceneRenderer&)            = delete;
-    SceneRenderer& operator=(const SceneRenderer&) = delete;
+    SceneRenderer() : IEngineSubmodule("SceneRenderer") {}
 
     // IEngineSubmodule
     void Init()      override {}
@@ -85,8 +82,6 @@ public:
     void EndFrame();
 
 private:
-    SceneRenderer() : IEngineSubmodule("SceneRenderer") {}
-
     // Upload a mesh to GPU on first use.  Returns false if the asset is
     // still loading (Pending) or failed.
     bool EnsureMeshUploaded(AssetHandle<MeshAsset> handle);

@@ -1,13 +1,14 @@
 #include <fstream>
 #include "Meta.h"
 #include "Util/Log.h"
-#include "AssetSystem.h"
+#include "AssetManager.h"
 
 static std::filesystem::path MetaPath(const std::filesystem::path& sourcePath)
 {
+	AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
     // e.g. assets/.cache/models/sword.gltf.meta
-    auto relative = std::filesystem::relative(sourcePath, AssetSystem::Get().GetAssetRoot());
-    return AssetSystem::Get().GetAssetRoot() / ".cache" / (relative.string() + ".meta");
+    auto relative = std::filesystem::relative(sourcePath, assetManager->GetAssetRoot());
+    return assetManager->GetAssetRoot() / ".cache" / (relative.string() + ".meta");
 }
 
 MetaFile MetaFile::LoadOrCreate(const std::filesystem::path& sourcePath)

@@ -295,7 +295,10 @@ void D3D12Device::Impl::WrapBackBuffers()
         nvrhi::TextureDesc texDesc;
         texDesc.width            = m_SwapWidth;
         texDesc.height           = m_SwapHeight;
-        texDesc.format           = nvrhi::Format::RGBA8_UNORM;
+        // The DXGI swap chain must be UNORM (flip model requirement), but we
+        // create an UNORM_SRGB RTV view so D3D12 applies linear→sRGB gamma
+        // correction on write, matching the Vulkan backend's sRGB surface.
+        texDesc.format           = nvrhi::Format::SRGBA8_UNORM;
         texDesc.dimension        = nvrhi::TextureDimension::Texture2D;
         texDesc.isRenderTarget   = true;
         texDesc.debugName        = debugName;

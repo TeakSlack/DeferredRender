@@ -1,7 +1,5 @@
-# Gather shared sources, stripping backend files so they can be added back
-# only when their option is ON. Backend sources are collected separately so
-# that add_library and source_group both see the final combined list —
-# keeping Solution Explorer in sync with what actually compiles.
+# Gather shared sources, excluding backend files so they are only compiled
+# when their corresponding option is ON.
 file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 file(GLOB_RECURSE CORE_HEADERS CONFIGURE_DEPENDS "src/*.h")
 
@@ -9,10 +7,10 @@ list(FILTER CORE_SOURCES EXCLUDE REGEX "VulkanDevice\\.cpp$")
 list(FILTER CORE_SOURCES EXCLUDE REGEX "D3D12Device\\.cpp$")
 
 set(BACKEND_SOURCES)
-if(CORE_VULKAN)
+if(COMPILE_WITH_VULKAN)
     list(APPEND BACKEND_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/Graphics/VulkanDevice.cpp")
 endif()
-if(CORE_DX12)
+if(COMPILE_WITH_DX12)
     list(APPEND BACKEND_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/Graphics/D3D12Device.cpp")
 endif()
 
@@ -27,8 +25,6 @@ target_include_directories(Core PUBLIC
     ${CMAKE_SOURCE_DIR}/Core/src
 )
 
-# Mirror filesystem structure in VS filters — covers both shared and backend
-# sources so Solution Explorer matches the enabled configuration exactly.
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "src" FILES ${CORE_SOURCES} ${BACKEND_SOURCES} ${CORE_HEADERS})
 
 # Base libraries — always required regardless of backend
@@ -41,17 +37,17 @@ target_link_libraries(Core PUBLIC
 
 # ---------------------------------------------------------------------------
 # Backend-specific libraries and macros
-# PUBLIC compile definitions so App (and any other consumer of Core) sees
-# the same CORE_VULKAN / CORE_DX12 macros without re-declaring them.
+# PUBLIC so App and any other consumer of Core sees the same
+# COMPILE_WITH_VULKAN / COMPILE_WITH_DX12 macros without re-declaring them.
 # ---------------------------------------------------------------------------
-if(CORE_VULKAN)
+if(COMPILE_WITH_VULKAN)
     target_link_libraries(Core PUBLIC Vulkan::Vulkan nvrhi_vk)
-    target_compile_definitions(Core PUBLIC CORE_VULKAN)
+    target_compile_definitions(Core PUBLIC COMPILE_WITH_VULKAN)
 endif()
 
-if(CORE_DX12)
+if(COMPILE_WITH_DX12)
     target_link_libraries(Core PUBLIC nvrhi_d3d12 dxgi)
-    target_compile_definitions(Core PUBLIC CORE_DX12)
+    target_compile_definitions(Core PUBLIC COMPILE_WITH_DX12)
 endif()
 
 # ---------------------------------------------------------------------------

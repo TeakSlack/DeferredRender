@@ -38,6 +38,18 @@ public:
     // Submodule registration — call before Run().
     void RegisterSubmodule(IEngineSubmodule* submodule);
 
+    // Submodule retrieval - eliminate Meyer's Singleton
+    template<typename T>
+    T* GetSubmodule()
+    {
+        for (IEngineSubmodule* submodule : m_Submodules)
+        {
+            if (T* typed = dynamic_cast<T*>(submodule))
+                return typed;
+        }
+        return nullptr;
+    }
+
     // Layer management — delegates to the LayerStack.
     void PushLayer(Layer* layer);
     void PopLayer(Layer* layer);

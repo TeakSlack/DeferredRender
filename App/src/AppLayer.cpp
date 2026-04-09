@@ -1,7 +1,7 @@
 #include "AppLayer.h"
 #define NOMINMAX
 
-#ifdef CORE_VULKAN
+#ifdef COMPILE_WITH_VULKAN
 // Provide storage for NVRHI's Vulkan-HPP dynamic dispatch loader.
 // MUST appear before any other Vulkan include so that vulkan_hpp_macros.hpp
 // processes VULKAN_HPP_DISPATCH_LOADER_DYNAMIC before the C vulkan.h guards
@@ -12,7 +12,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <Graphics/VulkanDevice.h>
 #endif
 
-#ifdef CORE_DX12
+#ifdef COMPILE_WITH_DX12
 #include <Graphics/D3D12Device.h>
 #endif
 
@@ -26,7 +26,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <Math/Vector3.h>
 #include <Math/Matrix4x4.h>
 #include <Util/Log.h>
-#include <Asset/AssetSystem.h>
+#include <Asset/AssetManager.h>
 #include <ECS/SceneManager.h>
 
 #include <algorithm>
@@ -55,11 +55,11 @@ std::vector<uint8_t> AppLayer::LoadSPIRV(const char* path)
 
 std::unique_ptr<IRenderDevice> AppLayer::MakeRenderDevice(RenderBackend backend)
 {
-#ifdef CORE_VULKAN
+#ifdef COMPILE_WITH_VULKAN
 	if (backend == RenderBackend::Vulkan)
 		return std::make_unique<VulkanDevice>(m_GlfwWindow);
 #endif
-#ifdef CORE_DX12
+#ifdef COMPILE_WITH_DX12
 	if (backend == RenderBackend::D3D12)
 		return std::make_unique<D3D12Device>(m_WindowSystem.GetNativeHandle(m_WindowHandle));
 #endif
@@ -69,17 +69,33 @@ std::unique_ptr<IRenderDevice> AppLayer::MakeRenderDevice(RenderBackend backend)
 
 void AppLayer::CreatePipelineAndFramebuffers()
 {
-	// Binding layout — vertex shader only, constant buffer at slot 0
+	// Per-material binding sets reference m_BindingLayout. Destroy them before
+	// recreating the layout so they don't hold a stale handle.
+	for (auto& [id, set] : m_MaterialSets)
+		m_GpuDevice->DestroyBindingSet(set);
+	m_MaterialSets.clear();
+
+	// Binding layout:
+	//   b0 (VS) — MVP matrix
+	//   b1 (PS) — material constants (base color factor)
+	//   t0 (PS) — albedo texture
+	//   s0 (PS) — sampler
 	BindingLayoutDesc layoutDesc;
-	layoutDesc.items = { BindingLayoutItem::ConstantBuffer(0, ShaderStage::Vertex) };
+	layoutDesc.items = {
+		BindingLayoutItem::ConstantBuffer(0, ShaderStage::Vertex),
+		BindingLayoutItem::ConstantBuffer(1, ShaderStage::Pixel),
+		BindingLayoutItem::Texture(0,         ShaderStage::Pixel),
+		BindingLayoutItem::Sampler(0,         ShaderStage::Pixel),
+	};
 	m_BindingLayout = m_GpuDevice->CreateBindingLayout(layoutDesc);
 
 	uint32_t vertexStride = (uint32_t)sizeof(Vertex);
 
-	// Input layout — two attributes from the same vertex buffer
 	std::vector<VertexAttributeDesc> attribs = {
 		{ "POSITION", GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, Position), vertexStride },
-		{ "COLOR",    GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, Normal),    vertexStride },
+		{ "NORMAL",   GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, Normal),   vertexStride },
+		{ "TEXCOORD", GpuFormat::RG32_FLOAT,  0, (uint32_t)offsetof(Vertex, TexCoord), vertexStride },
+		{ "TANGENT",  GpuFormat::RGB32_FLOAT, 0, (uint32_t)offsetof(Vertex, Tangent),  vertexStride },
 	};
 	m_InputLayout = m_GpuDevice->CreateInputLayout(attribs, m_VertShader);
 
@@ -106,7 +122,6 @@ void AppLayer::CreatePipelineAndFramebuffers()
 		m_Framebuffers.push_back(m_GpuDevice->CreateFramebuffer(fbDesc));
 	}
 
-	// Graphics pipeline
 	GraphicsPipelineDesc pipelineDesc;
 	pipelineDesc.vs                            = m_VertShader;
 	pipelineDesc.ps                            = m_FragShader;
@@ -118,30 +133,29 @@ void AppLayer::CreatePipelineAndFramebuffers()
 	pipelineDesc.depthStencil.depthWriteEnable = true;
 	pipelineDesc.depthStencil.depthFunc        = ComparisonFunc::Less;
 	pipelineDesc.bindingLayouts                = { m_BindingLayout };
+	if (m_Framebuffers.empty())
+	{
+		APP_FATAL("No framebuffers created — swapchain may not be initialized");
+		abort();
+	}
 	m_Pipeline = m_GpuDevice->CreateGraphicsPipeline(pipelineDesc, m_Framebuffers[0]);
-
-	// Binding set — wires the constant buffer into slot 0
-	BindingSetDesc setDesc;
-	setDesc.items = { BindingItem::ConstantBuffer(0, m_ConstantBuffer) };
-	m_BindingSet = m_GpuDevice->CreateBindingSet(setDesc, m_BindingLayout);
 }
 
 void AppLayer::InitGpuResources()
 {
-	// Load the correct shader format for the active backend
 	std::vector<uint8_t> vertBytes, fragBytes;
-#ifdef CORE_VULKAN
+#ifdef COMPILE_WITH_VULKAN
 	if (m_ActiveBackend == RenderBackend::Vulkan)
 	{
-		vertBytes = LoadSPIRV("shaders/triangle_vert.spv");
-		fragBytes = LoadSPIRV("shaders/triangle_frag.spv");
+		vertBytes = LoadSPIRV("shaders/mesh_vert.spv");
+		fragBytes = LoadSPIRV("shaders/mesh_frag.spv");
 	}
 #endif
-#ifdef CORE_DX12
+#ifdef COMPILE_WITH_DX12
 	if (m_ActiveBackend == RenderBackend::D3D12)
 	{
-		vertBytes = LoadSPIRV("shaders/triangle_vert.cso");
-		fragBytes = LoadSPIRV("shaders/triangle_frag.cso");
+		vertBytes = LoadSPIRV("shaders/mesh_vert.cso");
+		fragBytes = LoadSPIRV("shaders/mesh_frag.cso");
 	}
 #endif
 
@@ -161,35 +175,143 @@ void AppLayer::InitGpuResources()
 
 	m_CommandContext = m_GpuDevice->CreateCommandContext();
 
-	// Constant buffer — one 4×4 matrix, written per draw call
-	BufferDesc cbDesc;
-	cbDesc.byteSize  = sizeof(float) * 16;
-	cbDesc.usage     = BufferUsage::Constant;
-	cbDesc.debugName = "Constant Buffer";
-	m_ConstantBuffer = m_GpuDevice->CreateBuffer(cbDesc);
+	// b0 — MVP matrix (64 bytes)
+	BufferDesc mvpDesc;
+	mvpDesc.byteSize  = sizeof(float) * 16;
+	mvpDesc.usage     = BufferUsage::Constant;
+	mvpDesc.debugName = "MVP Buffer";
+	m_MvpBuffer = m_GpuDevice->CreateBuffer(mvpDesc);
 
-	SceneRenderer::Get().SetDevice(m_GpuDevice);
+	// b1 — material constants: base color factor (16 bytes)
+	BufferDesc matDesc;
+	matDesc.byteSize  = sizeof(float) * 4;
+	matDesc.usage     = BufferUsage::Constant;
+	matDesc.debugName = "Material Buffer";
+	m_MaterialBuffer = m_GpuDevice->CreateBuffer(matDesc);
+
+	// Shared linear-wrap sampler
+	SamplerDesc samplerDesc;
+	samplerDesc.minFilter     = Filter::Linear;
+	samplerDesc.magFilter     = Filter::Linear;
+	samplerDesc.mipFilter     = Filter::Linear;
+	samplerDesc.addressU      = AddressMode::Wrap;
+	samplerDesc.addressV      = AddressMode::Wrap;
+	samplerDesc.addressW      = AddressMode::Wrap;
+	samplerDesc.maxAnisotropy = 1;
+	m_Sampler = m_GpuDevice->CreateSampler(samplerDesc);
+
+	// 1×1 white fallback texture — bound whenever a material has no albedo map
+	{
+		TextureDesc desc;
+		desc.width     = 1;
+		desc.height    = 1;
+		desc.format    = GpuFormat::RGBA8_UNORM;
+		desc.usage     = TextureUsage::ShaderResource;
+		desc.debugName = "Fallback White Texture";
+		m_FallbackTexture = m_GpuDevice->CreateTexture(desc);
+
+		const uint8_t white[4] = { 255, 255, 255, 255 };
+		auto uploadCtx = m_GpuDevice->CreateCommandContext();
+		uploadCtx->Open();
+		uploadCtx->WriteTexture(m_FallbackTexture, 0, 0, white, 4);
+		uploadCtx->Close();
+		m_GpuDevice->ExecuteCommandContext(*uploadCtx);
+		m_GpuDevice->WaitForIdle();
+	}
+
+	m_SceneRenderer->SetDevice(m_GpuDevice);
 
 	CreatePipelineAndFramebuffers();
 }
 
 void AppLayer::DestroyGpuResources()
 {
-	// Release SceneRenderer GPU cache before the device is destroyed
-	SceneRenderer::Get().ReleaseGpuResources();
+	m_SceneRenderer->ReleaseGpuResources();
 
 	m_CommandContext.reset();
-	m_GpuDevice->DestroyBindingSet(m_BindingSet);        m_BindingSet     = {};
-	m_GpuDevice->DestroyGraphicsPipeline(m_Pipeline);    m_Pipeline       = {};
+
+	for (auto& [id, set] : m_MaterialSets)
+		m_GpuDevice->DestroyBindingSet(set);
+	m_MaterialSets.clear();
+
+	for (auto& [id, tex] : m_GpuTextures)
+		m_GpuDevice->DestroyTexture(tex);
+	m_GpuTextures.clear();
+
+	m_GpuDevice->DestroyTexture(m_FallbackTexture);      m_FallbackTexture  = {};
+	m_GpuDevice->DestroySampler(m_Sampler);              m_Sampler          = {};
+	m_GpuDevice->DestroyBuffer(m_MaterialBuffer);        m_MaterialBuffer   = {};
+	m_GpuDevice->DestroyBuffer(m_MvpBuffer);             m_MvpBuffer        = {};
+	m_GpuDevice->DestroyGraphicsPipeline(m_Pipeline);    m_Pipeline         = {};
 	for (auto fb : m_Framebuffers)
 		m_GpuDevice->DestroyFramebuffer(fb);
 	m_Framebuffers.clear();
-	m_GpuDevice->DestroyTexture(m_DepthBuffer);          m_DepthBuffer    = {};
-	m_GpuDevice->DestroyInputLayout(m_InputLayout);      m_InputLayout    = {};
-	m_GpuDevice->DestroyBindingLayout(m_BindingLayout);  m_BindingLayout  = {};
-	m_GpuDevice->DestroyBuffer(m_ConstantBuffer);        m_ConstantBuffer = {};
-	m_GpuDevice->DestroyShader(m_FragShader);            m_FragShader     = {};
-	m_GpuDevice->DestroyShader(m_VertShader);            m_VertShader     = {};
+	m_GpuDevice->DestroyTexture(m_DepthBuffer);          m_DepthBuffer      = {};
+	m_GpuDevice->DestroyInputLayout(m_InputLayout);      m_InputLayout      = {};
+	m_GpuDevice->DestroyBindingLayout(m_BindingLayout);  m_BindingLayout    = {};
+	m_GpuDevice->DestroyShader(m_FragShader);            m_FragShader       = {};
+	m_GpuDevice->DestroyShader(m_VertShader);            m_VertShader       = {};
+}
+
+GpuTexture AppLayer::EnsureTextureUploaded(AssetHandle<TextureAsset> handle)
+{
+	if (!handle.IsValid())
+		return m_FallbackTexture;
+
+	auto it = m_GpuTextures.find(handle.id);
+	if (it != m_GpuTextures.end())
+		return it->second;
+
+	TextureAsset* asset = m_AssetManager->GetAsset(handle);
+	if (!asset || asset->Data.empty())
+		return m_FallbackTexture;
+
+	TextureDesc desc;
+	desc.width     = asset->Width;
+	desc.height    = asset->Height;
+	desc.format    = GpuFormat::RGBA8_SRGB; // albedo data is sRGB-encoded; GPU linearises on sample
+	desc.usage     = TextureUsage::ShaderResource;
+	desc.debugName = "Texture";
+	GpuTexture tex = m_GpuDevice->CreateTexture(desc);
+
+	auto uploadCtx = m_GpuDevice->CreateCommandContext();
+	uploadCtx->Open();
+	uploadCtx->WriteTexture(tex, 0, 0, asset->Data.data(), asset->Width * 4u);
+	uploadCtx->Close();
+	m_GpuDevice->ExecuteCommandContext(*uploadCtx);
+	m_GpuDevice->WaitForIdle();
+
+	m_GpuTextures.emplace(handle.id, tex);
+	return tex;
+}
+
+GpuBindingSet AppLayer::GetOrCreateMaterialSet(AssetHandle<MaterialAsset> handle)
+{
+	AssetID key = handle.IsValid() ? handle.id : NullAssetId;
+
+	auto it = m_MaterialSets.find(key);
+	if (it != m_MaterialSets.end())
+		return it->second;
+
+	// Resolve albedo — fall back to the 1×1 white texture when absent
+	GpuTexture albedo = m_FallbackTexture;
+	if (handle.IsValid())
+	{
+		MaterialAsset* mat = m_AssetManager->GetAsset(handle);
+		if (mat && mat->AlbedoMap.IsValid())
+			albedo = EnsureTextureUploaded(mat->AlbedoMap);
+	}
+
+	BindingSetDesc setDesc;
+	setDesc.items = {
+		BindingItem::ConstantBuffer(0, m_MvpBuffer),
+		BindingItem::ConstantBuffer(1, m_MaterialBuffer),
+		BindingItem::Texture(0,         albedo),
+		BindingItem::Sampler(0,         m_Sampler),
+	};
+	GpuBindingSet set = m_GpuDevice->CreateBindingSet(setDesc, m_BindingLayout);
+	m_MaterialSets.emplace(key, set);
+	return set;
 }
 
 void AppLayer::SwitchBackend(RenderBackend next)
@@ -198,8 +320,9 @@ void AppLayer::SwitchBackend(RenderBackend next)
 	m_GpuDevice->RunGarbageCollection();
 	DestroyGpuResources();
 
-	GLFWwindow* glfwWindow = static_cast<GLFWwindow*>(m_WindowSystem.GetNativeHandle(m_WindowHandle));
-	glfwWaitEvents();
+	// Drain any pending window messages before tearing down the device.
+	// glfwWaitEvents() would block indefinitely if no message arrives (deadlock).
+	glfwPollEvents();
 
 	// m_GpuDevice is non-owning — clear the pointer before destroying the owner
 	m_GpuDevice = nullptr;
@@ -226,16 +349,21 @@ void AppLayer::SwitchBackend(RenderBackend next)
 
 void AppLayer::OnAttach()
 {
-	// Create the main scene and populate it with Sponza mesh entities
-	Scene* scene = SceneManager::Get().CreateScene("Main");
-	SceneManager::Get().SetActiveScene("Main");
+	// Get engine submodules
+	m_SceneRenderer = Engine::Get().GetSubmodule<SceneRenderer>();
+	m_SceneManager = Engine::Get().GetSubmodule<SceneManager>();
+	m_AssetManager = Engine::Get().GetSubmodule<AssetManager>();
 
-	GltfObject model = AssetSystem::Get().LoadGltf("models/Sponza.gltf");
-	for (auto& handle : model.Meshes)
+	// Create the main scene and populate it with Sponza mesh entities
+	Scene* scene = m_SceneManager->CreateScene("Main");
+	m_SceneManager->SetActiveScene("Main");
+
+	GltfObject model = m_AssetManager->LoadGltf("Sponza/Sponza.gltf");
+	for (size_t i = 0; i < model.Meshes.size(); ++i)
 	{
 		Entity entity = scene->CreateEntity("SponzaMesh");
-		entity.AddComponent<MeshComponent>().Mesh = handle;
-		entity.AddComponent<MaterialComponent>(); // placeholder — no material assets yet
+		entity.AddComponent<MeshComponent>().Mesh = model.Meshes[i];
+		entity.AddComponent<MaterialComponent>().Material = model.MeshMaterials[i];
 		entity.GetComponent<TransformComponent>().Scale = Vector3(0.01f);
 	}
 
@@ -249,11 +377,12 @@ void AppLayer::OnAttach()
 	// Always GLFW, so we can always get the raw window for cursor control.
 	auto& glfwWS = static_cast<GLFWWindowSystem&>(m_WindowSystem);
 	m_GlfwWindow = glfwWS.GetGLFWWindow(m_WindowHandle);
+	glfwSetInputMode(m_GlfwWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// Pick the first compiled-in backend as the default
-#if defined(CORE_VULKAN)
+#if defined(COMPILE_WITH_VULKAN)
 	m_ActiveBackend = RenderBackend::Vulkan;
-#elif defined(CORE_DX12)
+#elif defined(COMPILE_WITH_DX12)
 	m_ActiveBackend = RenderBackend::D3D12;
 #endif
 
@@ -288,7 +417,7 @@ void AppLayer::OnUpdate(float deltaTime)
 	}
 
 	// ---- Backend hot-swap (` key, only when both backends are compiled) ----
-#if defined(CORE_VULKAN) && defined(CORE_DX12)
+#if defined(COMPILE_WITH_VULKAN) && defined(COMPILE_WITH_DX12)
 	if (m_PendingBackendSwap)
 	{
 		m_PendingBackendSwap = false;
@@ -304,8 +433,10 @@ void AppLayer::OnUpdate(float deltaTime)
 	if (m_PendingResize)
 	{
 		m_GpuDevice->RunGarbageCollection();
-		// Release resources that hold back-buffer references
-		m_GpuDevice->DestroyBindingSet(m_BindingSet);      m_BindingSet = {};
+		// Release resources that hold back-buffer references or reference the binding layout
+		for (auto& [id, set] : m_MaterialSets)
+			m_GpuDevice->DestroyBindingSet(set);
+		m_MaterialSets.clear();
 		m_GpuDevice->DestroyGraphicsPipeline(m_Pipeline);  m_Pipeline   = {};
 		for (auto fb : m_Framebuffers)
 			m_GpuDevice->DestroyFramebuffer(fb);
@@ -377,13 +508,20 @@ void AppLayer::OnUpdate(float deltaTime)
 	RenderView renderView = MakeRenderView(
 		m_CamPos, view, projection, vp, fb, 0.1f, 500.0f);
 
-	SceneRenderer& renderer = SceneRenderer::Get();
-	renderer.BeginFrame();
+	m_SceneRenderer->BeginFrame();
 
-	if (Scene* scene = SceneManager::Get().GetActiveScene())
-		SceneRenderSystem::CollectAndSubmit(*scene, m_CamPos, renderer);
+	if (Scene* scene = m_SceneManager->GetActiveScene())
+		SceneRenderSystem::CollectAndSubmit(*scene, m_CamPos, *m_SceneRenderer);
 
-	renderer.RenderView(renderView);
+	m_SceneRenderer->RenderView(renderView);
+
+	// Pre-warm: upload any pending textures and create binding sets for all
+	// visible packets BEFORE opening the command context. Creating GPU resources
+	// (textures, binding sets) or executing upload command contexts inside a
+	// render pass corrupts backend state — all draws end up using the first
+	// binding set that was created.
+	for (const RenderPacket* packet : m_SceneRenderer->GetVisiblePackets())
+		GetOrCreateMaterialSet(packet->Material);
 
 	// ---- Record draw calls ----
 	m_CommandContext->Open();
@@ -405,19 +543,39 @@ void AppLayer::OnUpdate(float deltaTime)
 	sr.height = (int)fbHeight;
 	m_CommandContext->SetScissor(sr);
 
-	// Each visible packet gets its own MVP — world transform comes from the entity.
-	for (const RenderPacket* packet : renderer.GetVisiblePackets())
+	// Each visible packet gets its own MVP and material constants.
+	struct MaterialCBData { float baseColorFactor[4]; };
+
+	for (const RenderPacket* packet : m_SceneRenderer->GetVisiblePackets())
 	{
-		const SceneRenderer::GpuMesh* gpuMesh = renderer.GetGpuMesh(packet->Mesh);
+		const SceneRenderer::GpuMesh* gpuMesh = m_SceneRenderer->GetGpuMesh(packet->Mesh);
 		if (!gpuMesh)
 			continue;
 
+		// MVP
 		Matrix4x4 mvp = packet->WorldTransform * view * projection;
-		m_CommandContext->WriteBuffer(m_ConstantBuffer, &mvp, sizeof(mvp));
+		m_CommandContext->WriteBuffer(m_MvpBuffer, &mvp, sizeof(mvp));
+
+		// Material constants — default to opaque white when no material is set
+		MaterialCBData matCB = { 1.f, 1.f, 1.f, 1.f };
+		if (packet->Material.IsValid())
+		{
+			if (MaterialAsset* mat = m_AssetManager->GetAsset(packet->Material))
+			{
+				matCB.baseColorFactor[0] = mat->BaseColorFactor.x;
+				matCB.baseColorFactor[1] = mat->BaseColorFactor.y;
+				matCB.baseColorFactor[2] = mat->BaseColorFactor.z;
+				matCB.baseColorFactor[3] = mat->BaseColorFactor.w;
+			}
+		}
+		m_CommandContext->WriteBuffer(m_MaterialBuffer, &matCB, sizeof(matCB));
+
+		// Binding set carries the albedo texture for this material
+		GpuBindingSet bindingSet = GetOrCreateMaterialSet(packet->Material);
 
 		m_CommandContext->SetVertexBuffer(0, gpuMesh->VertexBuffer);
 		m_CommandContext->SetIndexBuffer(gpuMesh->IndexBuffer, GpuFormat::R32_UINT);
-		m_CommandContext->SetBindingSet(m_BindingSet);
+		m_CommandContext->SetBindingSet(bindingSet);
 
 		DrawIndexedArgs drawArgs;
 		drawArgs.indexCount = gpuMesh->IndexCount;
@@ -428,7 +586,7 @@ void AppLayer::OnUpdate(float deltaTime)
 	m_CommandContext->Close();
 
 	m_GpuDevice->ExecuteCommandContext(*m_CommandContext);
-	renderer.EndFrame();
+	m_SceneRenderer->EndFrame();
 	m_RenderDevice->Present();
 }
 
@@ -451,7 +609,7 @@ void AppLayer::OnEvent(Event& event)
 	{
 		int k = e.GetKeyCode();
 		if (k >= 0 && k < 512) m_Keys[k] = true;
-#if defined(CORE_VULKAN) && defined(CORE_DX12)
+#if defined(COMPILE_WITH_VULKAN) && defined(COMPILE_WITH_DX12)
 		if (k == GLFW_KEY_GRAVE_ACCENT)
 			m_PendingBackendSwap = true;
 #endif
@@ -465,31 +623,8 @@ void AppLayer::OnEvent(Event& event)
 		return false;
 	});
 
-	d.Dispatch<MouseButtonPressedEvent>([this](MouseButtonPressedEvent& e)
-	{
-		if (e.GetMouseButton() == GLFW_MOUSE_BUTTON_RIGHT)
-		{
-			m_RmbHeld    = true;
-			m_FirstMouse = true;
-			glfwSetInputMode(m_GlfwWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		}
-		return false;
-	});
-
-	d.Dispatch<MouseButtonReleasedEvent>([this](MouseButtonReleasedEvent& e)
-	{
-		if (e.GetMouseButton() == GLFW_MOUSE_BUTTON_RIGHT)
-		{
-			m_RmbHeld = false;
-			glfwSetInputMode(m_GlfwWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		}
-		return false;
-	});
-
 	d.Dispatch<MouseMovedEvent>([this](MouseMovedEvent& e)
 	{
-		if (!m_RmbHeld) return false;
-
 		if (m_FirstMouse)
 		{
 			m_LastMouseX = e.GetX();
@@ -510,7 +645,6 @@ void AppLayer::OnEvent(Event& event)
 
 	d.Dispatch<MouseScrolledEvent>([this](MouseScrolledEvent& e)
 	{
-		if (!m_RmbHeld) return false;
 		m_MoveSpeed = std::clamp(m_MoveSpeed + e.GetYOffset() * 0.5f, 0.5f, 50.f);
 		return false;
 	});

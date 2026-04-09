@@ -12,9 +12,10 @@
 #include <Render/SceneRenderSystem.h>
 #include <ECS/SceneManager.h>
 #include <Math/Vector3.h>
-#include <Asset/AssetSystem.h>
+#include <Asset/AssetManager.h>
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 struct GLFWwindow;
@@ -46,6 +47,14 @@ private:
 	// Full backend swap: tears down GPU resources + device, rebuilds with `next`.
 	void SwitchBackend(RenderBackend next);
 
+	// Upload a TextureAsset's pixel data to the GPU on first use.
+	// Returns m_FallbackTexture for invalid/unloaded handles.
+	GpuTexture EnsureTextureUploaded(AssetHandle<TextureAsset> handle);
+
+	// Return a cached binding set for the given material, creating it if needed.
+	// Uses NullAssetId as the key for packets with no material.
+	GpuBindingSet GetOrCreateMaterialSet(AssetHandle<MaterialAsset> handle);
+
 	IWindowSystem& m_WindowSystem;
 	WindowHandle   m_WindowHandle;
 	GLFWwindow*    m_GlfwWindow = nullptr;
@@ -59,19 +68,35 @@ private:
 
 	// ---- Input state ----
 	bool    m_Keys[512]  = {};
-	bool    m_RmbHeld    = false;
 	float   m_LastMouseX = 0.f;
 	float   m_LastMouseY = 0.f;
 	bool    m_FirstMouse = true;
 	Vector3 m_CamVel;
 
+	// ---- Scene ----
+	SceneManager*						  m_SceneManager = nullptr;
+
+	// ---- Asset ----
+	AssetManager*						  m_AssetManager = nullptr;
+
 	// ---- Render ----
+	SceneRenderer*						  m_SceneRenderer = nullptr;
 	RenderBackend                         m_ActiveBackend = RenderBackend::None;
 	bool                                  m_PendingBackendSwap = false;
 	std::unique_ptr<IRenderDevice>        m_RenderDevice;
 	IGpuDevice*                           m_GpuDevice = nullptr; // non-owning; owned by m_RenderDevice
 
-	GpuBuffer                             m_ConstantBuffer;
+	GpuBuffer                             m_MvpBuffer;         // b0: per-draw MVP matrix
+	GpuBuffer                             m_MaterialBuffer;    // b1: per-draw material constants
+	GpuSampler                            m_Sampler;           // shared linear-wrap sampler
+	GpuTexture                            m_FallbackTexture;   // 1×1 white — used when no albedo map
+
+	// Uploaded GPU textures, keyed by AssetID. Survive swapchain resize.
+	std::unordered_map<AssetID, GpuTexture,  std::hash<CoreUUID>> m_GpuTextures;
+	// Per-material binding sets, keyed by AssetID. Rebuilt whenever the
+	// binding layout is recreated (i.e. on resize or backend switch).
+	std::unordered_map<AssetID, GpuBindingSet, std::hash<CoreUUID>> m_MaterialSets;
+
 	GpuShader                             m_VertShader;
 	GpuShader                             m_FragShader;
 	GpuGraphicsPipeline                   m_Pipeline;
@@ -79,7 +104,6 @@ private:
 	GpuTexture                            m_DepthBuffer;
 	GpuBindingLayout                      m_BindingLayout;
 	GpuInputLayout                        m_InputLayout;
-	GpuBindingSet                         m_BindingSet;
 	std::unique_ptr<ICommandContext>      m_CommandContext;
 	bool                                  m_PendingResize = false;
 	uint32_t                              m_Width = 0, m_Height = 0;

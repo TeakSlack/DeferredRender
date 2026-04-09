@@ -14,7 +14,7 @@
 #include "Util/ThreadPool.h"
 
 // Forward declare so AssetRef can reference it
-class AssetSystem;
+class AssetManager;
 
 // -------------------------------------------------------------------------
 // AssetRef<T> — RAII ref-counted handle to a loaded asset.
@@ -55,13 +55,10 @@ struct GltfObject
 	std::vector<AssetHandle<TextureAsset>>  Textures;
 };
 
-class AssetSystem : public IEngineSubmodule
+class AssetManager : public IEngineSubmodule
 {
 public:
-	static AssetSystem& Get();
-
-	AssetSystem(const AssetSystem&) = delete;
-	AssetSystem& operator=(const AssetSystem&) = delete;
+    AssetManager() : IEngineSubmodule("AssetSystem") {}
 
 	void Init() override;
 	void Shutdown() override;
@@ -79,8 +76,6 @@ public:
 	std::filesystem::path GetAssetRoot() const { return m_AssetRoot; }
 
 private:
-	AssetSystem() : IEngineSubmodule("AssetSystem") {}
-
 	template<typename T>
 	AssetHandle<T> AddAssetWithID(AssetID id, T&& asset, const std::filesystem::path& srcPath);
 	void ScanMetaFiles();
@@ -116,7 +111,7 @@ private:
 };
 
 template<typename T>
-inline AssetHandle<T> AssetSystem::AddAssetWithID(AssetID id, T&& asset, const std::filesystem::path& sourcePath)
+inline AssetHandle<T> AssetManager::AddAssetWithID(AssetID id, T&& asset, const std::filesystem::path& sourcePath)
 {
 	AssetRecord record;
 	record.data = std::unique_ptr<void, void(*)(void*)>(
@@ -136,7 +131,7 @@ inline AssetHandle<T> AssetSystem::AddAssetWithID(AssetID id, T&& asset, const s
 }
 
 template<typename T>
-inline T* AssetSystem::GetAsset(AssetHandle<T> handle)
+inline T* AssetManager::GetAsset(AssetHandle<T> handle)
 {
     auto it = m_Assets.find(handle.id);
     if (it == m_Assets.end() || it->second.state != AssetState::Ready)
@@ -145,7 +140,7 @@ inline T* AssetSystem::GetAsset(AssetHandle<T> handle)
 }
 
 template<typename T>
-inline void AssetSystem::AcquireAsset(AssetHandle<T> handle)
+inline void AssetManager::AcquireAsset(AssetHandle<T> handle)
 {
     auto it = m_Assets.find(handle.id);
     if (it != m_Assets.end())
@@ -153,7 +148,7 @@ inline void AssetSystem::AcquireAsset(AssetHandle<T> handle)
 }
 
 template<typename T>
-inline void AssetSystem::ReleaseAsset(AssetHandle<T> handle)
+inline void AssetManager::ReleaseAsset(AssetHandle<T> handle)
 {
     auto it = m_Assets.find(handle.id);
     if (it == m_Assets.end())
@@ -170,7 +165,7 @@ inline void AssetSystem::ReleaseAsset(AssetHandle<T> handle)
 // immediately. The asset becomes available once Tick drains the job queue.
 // ---------------------------------------------------------------------------
 template<typename T>
-inline AssetHandle<T> AssetSystem::LoadAsset(const std::filesystem::path& path)
+inline AssetHandle<T> AssetManager::LoadAsset(const std::filesystem::path& path)
 {
     std::filesystem::path fullPath = std::filesystem::weakly_canonical(m_AssetRoot / path);
 
@@ -276,21 +271,24 @@ AssetRef<T>& AssetRef<T>::operator=(AssetRef&& other) noexcept
 template<typename T>
 T* AssetRef<T>::Get() const
 {
-    return AssetSystem::Get().GetAsset(m_Handle);
+    AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
+    return assetManager->GetAsset(m_Handle);
 }
 
 template<typename T>
 void AssetRef<T>::Acquire()
 {
+    AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
     if (m_Handle.IsValid())
-        AssetSystem::Get().AcquireAsset(m_Handle);
+        assetManager->AcquireAsset(m_Handle);
 }
 
 template<typename T>
 void AssetRef<T>::Release()
 {
+    AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
     if (m_Handle.IsValid())
-        AssetSystem::Get().ReleaseAsset(m_Handle);
+        assetManager->ReleaseAsset(m_Handle);
 }
 
 #endif // ASSET_SYSTEM_H

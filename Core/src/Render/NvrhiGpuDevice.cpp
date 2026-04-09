@@ -622,7 +622,17 @@ GpuBindingLayout NvrhiGpuDevice::CreateBindingLayout(const BindingLayoutDesc& de
     for (const auto& item : desc.items)
         vis |= (uint32_t)item.stage;
     bld.visibility = static_cast<nvrhi::ShaderType>(vis);
-    bld.bindingOffsets.setConstantBufferOffset(0); // match GLSL binding 0
+    // Vulkan binding = offset + slot.  Slots are D3D12 register indices (t0, s0, b0 ...).
+    // Offsets pack the per-type namespaces into a flat Vulkan binding space:
+    //   CBV  slot N  → binding N        (offset 0, covers b0..bN)
+    //   SRV  slot N  → binding 2+N      (offset 2)
+    //   Sampler slot N → binding 3+N    (offset 3)
+    //   UAV  slot N  → binding 4+N      (offset 4)
+    // These must match the [[vk::binding(X,0)]] annotations in the HLSL shaders.
+    bld.bindingOffsets.setConstantBufferOffset(0);
+    bld.bindingOffsets.setShaderResourceOffset(2);
+    bld.bindingOffsets.setSamplerOffset(3);
+    bld.bindingOffsets.setUnorderedAccessViewOffset(4);
 
     for (const auto& item : desc.items)
     {

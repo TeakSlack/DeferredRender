@@ -1,12 +1,6 @@
 #include "SceneManager.h"
 #include "../Util/Log.h"
 
-SceneManager& SceneManager::Get()
-{
-    static SceneManager s_Instance;
-    return s_Instance;
-}
-
 void SceneManager::Shutdown()
 {
     m_ActiveScene = nullptr;
