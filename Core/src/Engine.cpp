@@ -1,6 +1,7 @@
 #include "Engine.h"
 #include "Events/ApplicationEvents.h"
 #include "Util/Log.h"
+#include "Util/Assert.h"
 #include <chrono>
 
 Engine& Engine::Get()

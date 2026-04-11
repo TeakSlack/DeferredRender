@@ -1,21 +1,23 @@
 #ifndef ASSERT_H
 #define ASSERT_H
 
+#include "Util/Log.h"
+
 #ifdef COMPILE_WITH_ASSERT
 
-#define DEBUG_BREAK() asm { int 3 }
+#define DEBUG_BREAK() __debugbreak()
 
 #define CORE_ASSERT(expr, msg) \
 	do { \
 		if (!(expr)) { \
 			DEBUG_BREAK(); \
-			Log::Get().Error("Assertion failed: {0}", msg); \
+			CORE_ERROR("Assertion failed: {0}", msg); \
 		} \
-	} while (0)
+	} while (0);
 
 #else
 
-#define CORE_ASSERT(expr)
+#define CORE_ASSERT(expr, msg)
 
 #endif
 

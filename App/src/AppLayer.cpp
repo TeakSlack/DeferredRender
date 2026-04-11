@@ -320,13 +320,10 @@ void AppLayer::SwitchBackend(RenderBackend next)
 	m_GpuDevice->RunGarbageCollection();
 	DestroyGpuResources();
 
-	// Drain any pending window messages before tearing down the device.
-	// glfwWaitEvents() would block indefinitely if no message arrives (deadlock).
-	glfwPollEvents();
-
 	// m_GpuDevice is non-owning — clear the pointer before destroying the owner
 	m_GpuDevice = nullptr;
 	m_RenderDevice.reset();
+	glfwPollEvents();
 
 	m_ActiveBackend = next;
 	m_RenderDevice = MakeRenderDevice(next);
@@ -639,7 +636,7 @@ void AppLayer::OnEvent(Event& event)
 		m_LastMouseY = e.GetY();
 
 		m_CamYaw   += dx;
-		m_CamPitch  = std::clamp(m_CamPitch + dy, -89.f, 89.f);
+		m_CamPitch  = std::clamp(m_CamPitch - dy, -89.f, 89.f);
 		return false;
 	});
 
