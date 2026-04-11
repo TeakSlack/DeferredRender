@@ -51,8 +51,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # COMPILE_WITH_DX12 macros used by engine and application code.
 # Must be declared before add_subdirectory(vendor/NVRHI).
 # ---------------------------------------------------------------------------
-option(COMPILE_WITH_VULKAN "Enable the Vulkan rendering backend"       ON)
+option(COMPILE_WITH_VULKAN "Enable the Vulkan rendering backend"      ON)
 option(COMPILE_WITH_DX12   "Enable the Direct3D 12 rendering backend" OFF)
+option(COMPILE_WITH_ASSERT  "Enable assertions"                        ON)
 
 if(NOT COMPILE_WITH_VULKAN AND NOT COMPILE_WITH_DX12)
     message(FATAL_ERROR "At least one rendering backend must be enabled (COMPILE_WITH_VULKAN or COMPILE_WITH_DX12).")

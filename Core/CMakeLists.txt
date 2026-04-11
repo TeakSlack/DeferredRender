@@ -50,6 +50,10 @@ if(COMPILE_WITH_DX12)
     target_compile_definitions(Core PUBLIC COMPILE_WITH_DX12)
 endif()
 
+if(COMPILE_WITH_ASSERT)
+    target_compile_definitions(Core PUBLIC COMPILE_WITH_ASSERT)
+endif()
+
 # ---------------------------------------------------------------------------
 # Compiler settings
 # ---------------------------------------------------------------------------
