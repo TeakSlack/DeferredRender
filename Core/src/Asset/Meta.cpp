@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 #include "Meta.h"
 #include "Util/Log.h"
+#include "Util/Assert.h"
 #include "AssetManager.h"
 
 using namespace nlohmann;
@@ -90,8 +91,9 @@ static void from_json(const json& j, MetaFile& m)
 		return;
 	}
 	m.Type = j.value("Type", "");
-	m.RootGuid    = CoreUUID(j.value("RootGuid", 0ULL));
-	m.SourceHash  = j.value("SourceHash", 0ULL);
+	m.RootGuid = CoreUUID(j.value("RootGuid", 0ULL));
+	CORE_ASSERT(m.RootGuid.IsValid(), "MetaFile has null RootGuid");
+	m.SourceHash = j.value("SourceHash", 0ULL);
 	if (j.contains("SubAssets"))
 		for (auto& [name, id] : j["SubAssets"].items())
 			m.SubAssets[name] = CoreUUID(id.get<uint64_t>());

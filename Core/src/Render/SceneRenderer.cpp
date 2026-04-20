@@ -47,8 +47,19 @@ void SceneRenderer::Submit(const RenderPacket& packet)
     m_SubmittedPackets.push_back(packet);
 }
 
+void SceneRenderer::FlushUploads()
+{
+    if (!m_UploadPending)
+        return;
+    m_UploadContext->Close();
+    m_GpuDevice->ExecuteCommandContext(*m_UploadContext);
+    m_GpuDevice->WaitForIdle();
+    m_UploadPending = false;
+}
+
 void SceneRenderer::RenderView(const ::RenderView& view)
 {
+    FlushUploads();
     m_VisiblePackets.clear();
 
     for (RenderPacket& packet : m_SubmittedPackets)
@@ -118,12 +129,13 @@ bool SceneRenderer::EnsureMeshUploaded(AssetHandle<MeshAsset> handle)
     ibDesc.debugName = ibName.c_str();
     gpuMesh.IndexBuffer = m_GpuDevice->CreateBuffer(ibDesc);
 
-    m_UploadContext->Open();
+    if (!m_UploadPending)
+    {
+        m_UploadContext->Open();
+        m_UploadPending = true;
+    }
     m_UploadContext->WriteBuffer(gpuMesh.VertexBuffer, asset->Vertices.data(), vbBytes);
     m_UploadContext->WriteBuffer(gpuMesh.IndexBuffer,  asset->Indices.data(),  ibBytes);
-    m_UploadContext->Close();
-    m_GpuDevice->ExecuteCommandContext(*m_UploadContext);
-    m_GpuDevice->WaitForIdle();
 
 
     m_MeshCache.emplace(handle.id, std::move(gpuMesh));

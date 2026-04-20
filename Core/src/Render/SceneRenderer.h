@@ -97,8 +97,14 @@ private:
     std::vector<RenderPacket>  m_SubmittedPackets;
     std::vector<RenderPacket*> m_VisiblePackets;
 
+    // Flush all pending mesh uploads to the GPU. Called at the start of
+    // RenderView so all uploads that accumulated during Submit() are sent
+    // in a single execute+wait rather than one per mesh.
+    void FlushUploads();
+
     IGpuDevice*                          m_GpuDevice     = nullptr;
     std::unique_ptr<ICommandContext>     m_UploadContext;
+    bool                                 m_UploadPending = false;
 };
 
 #endif // SCENE_RENDERER_H

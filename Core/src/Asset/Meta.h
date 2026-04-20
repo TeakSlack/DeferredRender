@@ -50,7 +50,7 @@ public:
 	}
 
 	AssetID GetOrCreate(const std::string& name);
-	static MetaFile LoadOrCreate(const std::filesystem::path& metaPath);
+	static MetaFile LoadOrCreate(const std::filesystem::path& sourcePath);
 	void Save(const std::filesystem::path& metaPath) const;
 };
 

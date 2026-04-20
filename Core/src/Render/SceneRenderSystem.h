@@ -31,6 +31,7 @@ namespace SceneRenderSystem
     {
         // Iterate every entity that has all three renderable components.
         // entt only visits entities that own all listed component types.
+        AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
         auto view = scene.View<TransformComponent, MeshComponent, MaterialComponent>();
 
         view.each([&](const TransformComponent& transform,
@@ -40,7 +41,6 @@ namespace SceneRenderSystem
             // Skip entities whose assets haven't finished loading yet.
             // Submit() already guards against Pending meshes, but checking
             // here avoids building bounds for an asset we can't use.
-			AssetManager* assetManager = Engine::Get().GetSubmodule<AssetManager>();
             MeshAsset* meshData = assetManager->GetAsset(mesh.Mesh);
             if (!meshData)
                 return;

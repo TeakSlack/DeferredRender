@@ -26,17 +26,22 @@ void AssetManager::Shutdown()
 
 void AssetManager::Tick(float)
 {
-	std::lock_guard lock(m_CompletedMutex);
-	while (!m_CompletedJobs.empty())
+	std::queue<CompletedJob> local;
 	{
-		auto& job = m_CompletedJobs.front();
+		std::lock_guard lock(m_CompletedMutex);
+		std::swap(local, m_CompletedJobs);
+	}
+
+	while (!local.empty())
+	{
+		auto& job = local.front();
 		auto it   = m_Assets.find(job.id);
 		if (it != m_Assets.end())
 		{
 			it->second.data  = std::move(job.data);
 			it->second.state = job.state;
 		}
-		m_CompletedJobs.pop();
+		local.pop();
 	}
 }
 
@@ -117,10 +122,11 @@ GltfObject AssetManager::LoadGltf(const std::filesystem::path& path)
 
         int matIdx = (i < rawPackage.MeshMaterialIndices.size())
                    ? rawPackage.MeshMaterialIndices[i] : -1;
-        if (matIdx >= 0 && matIdx < static_cast<int>(result.Materials.size()))
+        if (matIdx >= 0 && static_cast<size_t>(matIdx) < result.Materials.size())
             result.MeshMaterials[i] = result.Materials[matIdx];
     }
 
+    meta.SourceHash = MetaFile::ComputeHash(fullPath);
     meta.Save(fullPath);
     m_GltfObjects[fullPath] = result;
     return result;

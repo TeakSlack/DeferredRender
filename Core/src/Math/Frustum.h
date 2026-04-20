@@ -73,7 +73,7 @@ struct Frustum
 //   Left:   clip.w + clip.x >= 0   →  worldPos · (Col3 + Col0) >= 0
 //   Right:  clip.w - clip.x >= 0   →  worldPos · (Col3 - Col0) >= 0
 //   Bottom: clip.w + clip.y >= 0   →  worldPos · (Col3 + Col1) >= 0
-//   Top:    clip.w - clip.y >= 0   →  worldPos · (Col3 - Col2) >= 0
+//   Top:    clip.w - clip.y >= 0   →  worldPos · (Col3 - Col1) >= 0
 //   Near:   clip.z         >= 0   →  worldPos · Col2            >= 0
 //   Far:    clip.w - clip.z >= 0   →  worldPos · (Col3 - Col2) >= 0
 //

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <random>
 #include <ostream>
 #include <string>
@@ -19,8 +20,10 @@ public:
 
     static CoreUUID Generate()
     {
+        static std::mutex                              mtx;
         static std::mt19937_64                        rng(std::random_device{}());
         static std::uniform_int_distribution<uint64_t> dist(1, UINT64_MAX);
+        std::lock_guard lock(mtx);
         return CoreUUID(dist(rng));
     }
 
