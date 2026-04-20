@@ -33,6 +33,7 @@ target_link_libraries(Core PUBLIC
     glfw
     nvrhi
     fastgltf
+    nlohmann_json::nlohmann_json
 )
 
 # ---------------------------------------------------------------------------

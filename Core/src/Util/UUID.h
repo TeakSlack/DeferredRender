@@ -5,6 +5,7 @@
 #include <functional>
 #include <random>
 #include <ostream>
+#include <string>
 
 // -------------------------------------------------------------------------
 // UUID — a 64-bit unique identifier.
@@ -43,6 +44,11 @@ struct std::hash<CoreUUID>
 inline std::ostream& operator<<(std::ostream& os, const CoreUUID& id)
 {
     return os << id.Value();
+}
+
+inline std::string to_string(const CoreUUID& id)
+{
+	return std::to_string(id.Value());
 }
 
 #endif // UUID_H

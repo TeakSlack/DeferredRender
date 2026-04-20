@@ -12,9 +12,12 @@ bin-int
 **/Makefile
 build
 .claude
+**.cache
+App/Assets/.cache
 CLAUDE.md
 scripts/CMakeFiles
 scripts/vendor
 vendor/CMakeCache.txt
 vendor/CMakeFiles
 vendor/fastgltfConfigVersion.cmake
+Editor/obj**
