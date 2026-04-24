@@ -25,7 +25,7 @@ print("Running CMake configure...")
 if platform.system() == "Windows":
     subprocess.call([
         'cmake', '-S', '.', '-B', 'build',
-        '-G', 'Visual Studio 17 2022',
+        '-G', 'Visual Studio 18 2026',
         '-A', 'x64'
     ])
 elif platform.system() == "Linux":

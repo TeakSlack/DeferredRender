@@ -6,7 +6,7 @@ import urllib.request
 import FileUtil
 
 class SetupVulkan:
-    requiredVulkanVersion = "1.3"
+    requiredVulkanVersion = "1.4"
     vulkanDirectory = "./vendor/VulkanSDK"
 
     _latestVersionCache = None
