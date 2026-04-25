@@ -247,7 +247,20 @@ public:
 
     void EndRenderPass() override
     {
-        // No explicit end call needed for NVRHI's non-render-pass API.
+        // FlushGraphicsState is gated on having a pipeline, so clear-only passes
+        // (no draws, no SetGraphicsPipeline) would silently drop their clears.
+        // Apply them directly here — clearTextureFloat handles its own layout
+        // transition internally and does not require an active pipeline.
+        if (m_HasPendingClears)
+        {
+            ApplyPendingClears();
+            m_HasPendingClears = false;
+        }
+
+        m_GfxState.framebuffer = nullptr;
+        m_PendingFbHandle      = {};
+        m_PendingRpDesc        = {};
+        m_GfxStateDirty        = false;
     }
 
     // ---- Graphics state ----
