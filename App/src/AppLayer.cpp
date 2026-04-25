@@ -2,13 +2,6 @@
 #define NOMINMAX
 
 #ifdef COMPILE_WITH_VULKAN
-// Provide storage for NVRHI's Vulkan-HPP dynamic dispatch loader.
-// MUST appear before any other Vulkan include so that vulkan_hpp_macros.hpp
-// processes VULKAN_HPP_DISPATCH_LOADER_DYNAMIC before the C vulkan.h guards
-// cause VULKAN_HPP_DEFAULT_DISPATCHER to be left undefined.
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
-#include <vulkan/vulkan.hpp>
-VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <Graphics/VulkanDevice.h>
 #endif
 
@@ -19,9 +12,6 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <Engine.h>
 #include <Window/GLFWWindow.h>
 #include <Events/ApplicationEvents.h>
-#include <Events/KeyEvents.h>
-#include <GLFW/glfw3.h>
-#include <Util/Log.h>
 
 // -------------------------------------------------------------------------
 // Utility functions
@@ -57,7 +47,7 @@ ClearValue HsvToRgb(float h, float s, float v)
 
 void AppLayer::CreateFramebuffers()
 {
-	auto extent = m_WindowSystem.GetExtent(m_WindowHandle);
+	auto extent = m_WindowSystem->GetExtent(m_WindowHandle);
 	m_Width  = (uint32_t)extent.x;
 	m_Height = (uint32_t)extent.y;
 
@@ -101,16 +91,17 @@ void AppLayer::OnAttach()
 	desc.title  = "FrameGraph Testbed";
 	desc.width  = 1280;
 	desc.height = 720;
-	m_WindowHandle = m_WindowSystem.OpenWindow(desc);
+	m_WindowSystem = Engine::Get().GetSubmodule<GLFWWindowSystem>();
+	m_WindowHandle = m_WindowSystem->OpenWindow(desc);
 
-	auto& glfwWS = static_cast<GLFWWindowSystem&>(m_WindowSystem);
-	m_GlfwWindow = glfwWS.GetGLFWWindow(m_WindowHandle);
+	auto* glfwWS = dynamic_cast<GLFWWindowSystem*>(m_WindowSystem);
+	m_GlfwWindow = glfwWS->GetGLFWWindow(m_WindowHandle);
 
-	//m_RenderDevice = std::make_unique<VulkanDevice>(m_GlfwWindow);
-	m_RenderDevice = std::make_unique<D3D12Device>(glfwWS.GetNativeHandle(m_WindowHandle));
+	m_RenderDevice = std::make_unique<VulkanDevice>(m_GlfwWindow);
+	//m_RenderDevice = std::make_unique<D3D12Device>(glfwWS->GetNativeHandle(m_WindowHandle));
 	m_GpuDevice    = m_RenderDevice->CreateDevice();
 
-	auto extent = m_WindowSystem.GetExtent(m_WindowHandle);
+	auto extent = m_WindowSystem->GetExtent(m_WindowHandle);
 	m_RenderDevice->CreateSwapchain((uint32_t)extent.x, (uint32_t)extent.y);
 
 	m_CommandContext = m_GpuDevice->CreateCommandContext();
@@ -131,12 +122,12 @@ void AppLayer::OnDetach()
 	m_GpuDevice = nullptr;
 	m_RenderDevice.reset();
 
-	m_WindowSystem.CloseWindow(m_WindowHandle);
+	m_WindowSystem->CloseWindow(m_WindowHandle);
 }
 
 void AppLayer::OnUpdate(float deltaTime)
 {
-	if (m_WindowSystem.ShouldClose(m_WindowHandle))
+	if (m_WindowSystem->ShouldClose(m_WindowHandle))
 	{
 		Engine::Get().RequestStop();
 		return;

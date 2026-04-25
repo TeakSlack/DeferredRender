@@ -2,12 +2,11 @@
 
 #include <Engine.h>
 #include <Window/GLFWWindow.h>
-#include <Asset/AssetManager.h>
 
 int main()
 {
 	GLFWWindowSystem windowSystem;
-	AppLayer appLayer(windowSystem);
+	AppLayer appLayer;
 
 	Engine::Get().RegisterSubmodule(&windowSystem);
 	Engine::Get().PushLayer(&appLayer);

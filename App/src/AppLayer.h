@@ -15,7 +15,7 @@ struct GLFWwindow;
 class AppLayer : public Layer
 {
 public:
-	AppLayer(IWindowSystem& ws) : Layer("AppLayer"), m_WindowSystem(ws) {}
+	AppLayer() : Layer("AppLayer") {}
 
 	void OnAttach() override;
 	void OnDetach() override;
@@ -26,7 +26,7 @@ private:
 	void CreateFramebuffers();
 	void DestroyFramebuffers();
 
-	IWindowSystem& m_WindowSystem;
+	IWindowSystem* m_WindowSystem = nullptr;
 	WindowHandle   m_WindowHandle;
 	GLFWwindow*    m_GlfwWindow = nullptr;
 
