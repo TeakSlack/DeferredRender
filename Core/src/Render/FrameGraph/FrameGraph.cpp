@@ -11,7 +11,7 @@ RGMutableTextureHandle PassBuilder::CreateTexture(const TextureDesc& desc)
 	RGResourceNode& node = m_FrameGraph->m_Resources.emplace_back();
 	node.Kind           = RGResourceNode::ResourceKind::Texture;
 	node.TextureDesc    = desc;
-	node.Name           = desc.debugName ? desc.debugName : "";
+	node.Name           = desc.DebugName ? desc.DebugName : "";
 	node.FirstPassIndex = m_PassIndex;
 
 	m_Pass->Creates.push_back(index);
@@ -28,7 +28,7 @@ RGMutableBufferHandle PassBuilder::CreateBuffer(const BufferDesc& desc)
 	RGResourceNode& node = m_FrameGraph->m_Resources.emplace_back();
 	node.Kind           = RGResourceNode::ResourceKind::Buffer;
 	node.BufferDesc     = desc;
-	node.Name           = desc.debugName ? desc.debugName : "";
+	node.Name           = desc.DebugName ? desc.DebugName : "";
 	node.FirstPassIndex = m_PassIndex;
 
 	m_Pass->Creates.push_back(index);
@@ -126,7 +126,7 @@ RGTextureHandle FrameGraph::ImportTexture(GpuTexture texture, const TextureDesc&
 	RGResourceNode& node = m_Resources.emplace_back();
 	node.Kind            = RGResourceNode::ResourceKind::Texture;
 	node.TextureDesc     = desc;
-	node.Name            = desc.debugName ? desc.debugName : "";
+	node.Name            = desc.DebugName ? desc.DebugName : "";
 	node.Imported        = true;
 	node.RefCount        = 1;
 	node.ImportedLayout  = layout;
@@ -146,7 +146,7 @@ RGMutableTextureHandle FrameGraph::ImportMutableTexture(GpuTexture texture, cons
 	RGResourceNode& node = m_Resources.emplace_back();
 	node.Kind = RGResourceNode::ResourceKind::Texture;
 	node.TextureDesc = desc;
-	node.Name = desc.debugName ? desc.debugName : "";
+	node.Name = desc.DebugName ? desc.DebugName : "";
 	node.Imported = true;
 	node.RefCount = 1;
 	node.ImportedLayout = layout;
@@ -166,7 +166,7 @@ RGBufferHandle FrameGraph::ImportBuffer(GpuBuffer buffer, const BufferDesc& desc
 	RGResourceNode& node = m_Resources.emplace_back();
 	node.Kind           = RGResourceNode::ResourceKind::Buffer;
 	node.BufferDesc     = desc;
-	node.Name           = desc.debugName ? desc.debugName : "";
+	node.Name           = desc.DebugName ? desc.DebugName : "";
 	node.Imported       = true;
 	node.RefCount       = 1;
 	node.ResolvedBuffer = buffer;

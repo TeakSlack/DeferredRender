@@ -216,7 +216,7 @@ public:
     {
         m_CmdList->clearTextureFloat(m_Device->GetTexture(texture.id),
                                       nvrhi::AllSubresources,
-                                      nvrhi::Color(c.r, c.g, c.b, c.a));
+                                      nvrhi::Color(c.R, c.G, c.B, c.A));
     }
 
     void ClearDepth(GpuTexture texture, float depth) override
@@ -238,10 +238,10 @@ public:
     // has already bound the framebuffer (required for D3D12/NVRHI).
     void BeginRenderPass(const RenderPassDesc& desc) override
     {
-        m_GfxState.framebuffer = m_Device->GetFramebuffer(desc.framebuffer.id);
-        m_PendingFbHandle      = desc.framebuffer;
+        m_GfxState.framebuffer = m_Device->GetFramebuffer(desc.Framebuffer.id);
+        m_PendingFbHandle      = desc.Framebuffer;
         m_PendingRpDesc        = desc;
-        m_HasPendingClears     = desc.clearColor || desc.clearDepth || desc.clearStencil;
+        m_HasPendingClears     = desc.ClearColor || desc.ClearDepth || desc.ClearStencil;
         m_GfxStateDirty        = true;
     }
 
@@ -272,17 +272,17 @@ public:
 
     void SetViewport(const Viewport& vp) override
     {
-        nvrhi::Viewport nvVp(vp.x, vp.x + vp.width,
-                             vp.y, vp.y + vp.height,
-                             vp.minDepth, vp.maxDepth);
+        nvrhi::Viewport nvVp(vp.X, vp.X + vp.Width,
+                             vp.Y, vp.Y + vp.Height,
+                             vp.MinDepth, vp.MaxDepth);
         auto& vps = m_GfxState.viewport.viewports;
         if (vps.empty()) vps.push_back(nvVp); else vps[0] = nvVp;
 
         // Auto scissor — overridden if SetScissor is called explicitly.
         if (!m_ExplicitScissor)
         {
-            nvrhi::Rect nvSr((int)vp.x, (int)(vp.x + vp.width),
-                             (int)vp.y, (int)(vp.y + vp.height));
+            nvrhi::Rect nvSr((int)vp.X, (int)(vp.X + vp.Width),
+                             (int)vp.Y, (int)(vp.Y + vp.Height));
             auto& srs = m_GfxState.viewport.scissorRects;
             if (srs.empty()) srs.push_back(nvSr); else srs[0] = nvSr;
         }
@@ -296,8 +296,8 @@ public:
 
     void SetScissor(const ScissorRect& rect) override
     {
-        nvrhi::Rect nvSr(rect.x, rect.x + rect.width,
-                         rect.y, rect.y + rect.height);
+        nvrhi::Rect nvSr(rect.X, rect.X + rect.Width,
+                         rect.Y, rect.Y + rect.Height);
         auto& srs = m_GfxState.viewport.scissorRects;
         if (srs.empty()) srs.push_back(nvSr); else srs[0] = nvSr;
         m_ExplicitScissor = true;
@@ -374,10 +374,10 @@ public:
     {
         FlushGraphicsState();
         nvrhi::DrawArguments a;
-        a.vertexCount         = args.vertexCount;
-        a.instanceCount       = args.instanceCount;
-        a.startVertexLocation = args.startVertex;
-        a.startInstanceLocation = args.startInstance;
+        a.vertexCount         = args.VertexCount;
+        a.instanceCount       = args.InstanceCount;
+        a.startVertexLocation = args.StartVertex;
+        a.startInstanceLocation = args.StartInstance;
         m_CmdList->draw(a);
     }
 
@@ -385,11 +385,11 @@ public:
     {
         FlushGraphicsState();
         nvrhi::DrawArguments a;
-        a.vertexCount           = args.indexCount;
-        a.instanceCount         = args.instanceCount;
-        a.startIndexLocation    = args.startIndex;
-        a.startVertexLocation   = args.baseVertex;
-        a.startInstanceLocation = args.startInstance;
+        a.vertexCount           = args.IndexCount;
+        a.instanceCount         = args.InstanceCount;
+        a.startIndexLocation    = args.StartIndex;
+        a.startVertexLocation   = args.BaseVertex;
+        a.startInstanceLocation = args.StartInstance;
         m_CmdList->drawIndexed(a);
     }
 
@@ -429,7 +429,7 @@ public:
     void Dispatch(const DispatchArgs& args) override
     {
         FlushComputeState();
-        m_CmdList->dispatch(args.groupX, args.groupY, args.groupZ);
+        m_CmdList->dispatch(args.GroupX, args.GroupY, args.GroupZ);
     }
 
     void DispatchIndirect(GpuBuffer argsBuffer, uint64_t byteOffset) override
@@ -530,27 +530,27 @@ private:
     {
         const auto& fbDesc = m_Device->GetFramebufferDesc(m_PendingFbHandle.id);
 
-        if (m_PendingRpDesc.clearColor)
+        if (m_PendingRpDesc.ClearColor)
         {
-            auto& cv = m_PendingRpDesc.colorValue;
-            for (const auto& attach : fbDesc.colorAttachments)
+            auto& cv = m_PendingRpDesc.ColorValue;
+            for (const auto& attach : fbDesc.ColorAttachments)
             {
-                if (!attach.texture.IsValid()) continue;
+                if (!attach.Texture.IsValid()) continue;
                 m_CmdList->clearTextureFloat(
-                    m_Device->GetTexture(attach.texture.id),
+                    m_Device->GetTexture(attach.Texture.id),
                     nvrhi::AllSubresources,
-                    nvrhi::Color(cv.r, cv.g, cv.b, cv.a));
+                    nvrhi::Color(cv.R, cv.G, cv.B, cv.A));
             }
         }
 
-        if ((m_PendingRpDesc.clearDepth || m_PendingRpDesc.clearStencil)
-            && fbDesc.depthAttachment.texture.IsValid())
+        if ((m_PendingRpDesc.ClearDepth || m_PendingRpDesc.ClearStencil)
+            && fbDesc.DepthAttachment.Texture.IsValid())
         {
             m_CmdList->clearDepthStencilTexture(
-                m_Device->GetTexture(fbDesc.depthAttachment.texture.id),
+                m_Device->GetTexture(fbDesc.DepthAttachment.Texture.id),
                 nvrhi::AllSubresources,
-                m_PendingRpDesc.clearDepth,   m_PendingRpDesc.depthValue,
-                m_PendingRpDesc.clearStencil, m_PendingRpDesc.stencilValue);
+                m_PendingRpDesc.ClearDepth,   m_PendingRpDesc.DepthValue,
+                m_PendingRpDesc.ClearStencil, m_PendingRpDesc.StencilValue);
         }
     }
 
@@ -587,15 +587,15 @@ NvrhiGpuDevice::NvrhiGpuDevice(nvrhi::IDevice* device)
 GpuBuffer NvrhiGpuDevice::CreateBuffer(const BufferDesc& desc)
 {
     nvrhi::BufferDesc bd;
-    bd.byteSize       = desc.byteSize;
-    bd.debugName      = desc.debugName ? desc.debugName : "";
-    bd.isConstantBuffer   = (desc.usage & BufferUsage::Constant) != 0;
-    bd.isVertexBuffer     = (desc.usage & BufferUsage::Vertex)   != 0;
-    bd.isIndexBuffer      = (desc.usage & BufferUsage::Index)    != 0;
-    bd.isDrawIndirectArgs = (desc.usage & BufferUsage::Indirect)  != 0;
-    if (desc.usage & BufferUsage::Storage)
+    bd.byteSize       = desc.ByteSize;
+    bd.debugName      = desc.DebugName ? desc.DebugName : "";
+    bd.isConstantBuffer   = (desc.Usage & BufferUsage::Constant) != 0;
+    bd.isVertexBuffer     = (desc.Usage & BufferUsage::Vertex)   != 0;
+    bd.isIndexBuffer      = (desc.Usage & BufferUsage::Index)    != 0;
+    bd.isDrawIndirectArgs = (desc.Usage & BufferUsage::Indirect)  != 0;
+    if (desc.Usage & BufferUsage::Storage)
         bd.canHaveUAVs = true;
-    if (desc.usage & BufferUsage::Staging)
+    if (desc.Usage & BufferUsage::Staging)
     {
         bd.cpuAccess  = nvrhi::CpuAccessMode::Write;
         bd.isVertexBuffer = false; // staging buffers are not VBs
@@ -603,11 +603,11 @@ GpuBuffer NvrhiGpuDevice::CreateBuffer(const BufferDesc& desc)
     bd.keepInitialState = true;
 
     // Set initial resource state
-    if (desc.usage & BufferUsage::Constant)
+    if (desc.Usage & BufferUsage::Constant)
         bd.initialState = nvrhi::ResourceStates::ConstantBuffer;
-    else if (desc.usage & BufferUsage::Vertex)
+    else if (desc.Usage & BufferUsage::Vertex)
         bd.initialState = nvrhi::ResourceStates::VertexBuffer;
-    else if (desc.usage & BufferUsage::Index)
+    else if (desc.Usage & BufferUsage::Index)
         bd.initialState = nvrhi::ResourceStates::IndexBuffer;
 
     return { m_Buffers.Add(m_Device->createBuffer(bd)) };
@@ -623,31 +623,31 @@ void NvrhiGpuDevice::DestroyBuffer(GpuBuffer handle)
 GpuTexture NvrhiGpuDevice::CreateTexture(const TextureDesc& desc)
 {
     nvrhi::TextureDesc td;
-    td.width       = desc.width;
-    td.height      = desc.height;
-    td.depth       = desc.depth;
-    td.mipLevels   = desc.mipLevels;
-    td.sampleCount = desc.sampleCount;
-    td.format      = ToNvrhiFormat(desc.format);
-    td.dimension   = ToNvrhiTexDim(desc.dimension);
-    td.debugName   = desc.debugName ? desc.debugName : "";
-    td.isRenderTarget   = (desc.usage & TextureUsage::RenderTarget) != 0;
-    td.isUAV            = (desc.usage & TextureUsage::Storage)      != 0;
+    td.width       = desc.Width;
+    td.height      = desc.Height;
+    td.depth       = desc.Depth;
+    td.mipLevels   = desc.MipLevels;
+    td.sampleCount = desc.SampleCount;
+    td.format      = ToNvrhiFormat(desc.Format);
+    td.dimension   = ToNvrhiTexDim(desc.Dimension);
+    td.debugName   = desc.DebugName ? desc.DebugName : "";
+    td.isRenderTarget   = (desc.Usage & TextureUsage::RenderTarget) != 0;
+    td.isUAV            = (desc.Usage & TextureUsage::Storage)      != 0;
     td.keepInitialState = true;
 
-    if (desc.usage & TextureUsage::DepthStencil)
+    if (desc.Usage & TextureUsage::DepthStencil)
     {
         td.isRenderTarget  = true;
         td.initialState    = nvrhi::ResourceStates::DepthWrite;
-        td.clearValue      = nvrhi::Color(desc.optimizedClearDepth);
+        td.clearValue      = nvrhi::Color(desc.OptimizedClearDepth);
     }
-    else if (desc.usage & TextureUsage::RenderTarget)
+    else if (desc.Usage & TextureUsage::RenderTarget)
     {
         td.initialState    = nvrhi::ResourceStates::RenderTarget;
-        td.clearValue      = nvrhi::Color(desc.optimizedClearColor.r,
-                                           desc.optimizedClearColor.g,
-                                           desc.optimizedClearColor.b,
-                                           desc.optimizedClearColor.a);
+        td.clearValue      = nvrhi::Color(desc.OptimizedClearColor.R,
+                                           desc.OptimizedClearColor.G,
+                                           desc.OptimizedClearColor.B,
+                                           desc.OptimizedClearColor.A);
     }
     else
     {
@@ -667,16 +667,16 @@ void NvrhiGpuDevice::DestroyTexture(GpuTexture handle)
 GpuSampler NvrhiGpuDevice::CreateSampler(const SamplerDesc& desc)
 {
     nvrhi::SamplerDesc sd;
-    sd.addressU    = ToNvrhiAddressMode(desc.addressU);
-    sd.addressV    = ToNvrhiAddressMode(desc.addressV);
-    sd.addressW    = ToNvrhiAddressMode(desc.addressW);
-    sd.mipBias       = desc.mipLODBias;
-    sd.maxAnisotropy = (float)desc.maxAnisotropy;
+    sd.addressU    = ToNvrhiAddressMode(desc.AddressU);
+    sd.addressV    = ToNvrhiAddressMode(desc.AddressV);
+    sd.addressW    = ToNvrhiAddressMode(desc.AddressW);
+    sd.mipBias       = desc.MipLODBias;
+    sd.maxAnisotropy = (float)desc.MaxAnisotropy;
     // Note: NVRHI SamplerDesc has no comparisonFunc or LOD clamp fields.
     // Those fields on our SamplerDesc are silently ignored in this backend.
 
-    bool linear = (desc.minFilter == Filter::Linear || desc.magFilter == Filter::Linear);
-    bool aniso  = (desc.minFilter == Filter::Anisotropic);
+    bool linear = (desc.MinFilter == Filter::Linear || desc.MagFilter == Filter::Linear);
+    bool aniso  = (desc.MinFilter == Filter::Anisotropic);
     sd.minFilter = sd.magFilter = sd.mipFilter = linear || aniso;
 
     return { m_Samplers.Add(m_Device->createSampler(sd)) };
@@ -692,12 +692,12 @@ void NvrhiGpuDevice::DestroySampler(GpuSampler handle)
 GpuShader NvrhiGpuDevice::CreateShader(const ShaderDesc& desc)
 {
     nvrhi::ShaderDesc sd;
-    sd.shaderType = ToNvrhiShaderType(desc.stage);
-    sd.entryName  = desc.entryPoint ? desc.entryPoint : "main";
-    sd.debugName  = desc.debugName  ? desc.debugName  : "";
+    sd.shaderType = ToNvrhiShaderType(desc.Stage);
+    sd.entryName  = desc.EntryPoint ? desc.EntryPoint : "main";
+    sd.debugName  = desc.DebugName  ? desc.DebugName  : "";
 
     return { m_Shaders.Add(
-        m_Device->createShader(sd, desc.bytecode, desc.byteSize)) };
+        m_Device->createShader(sd, desc.Bytecode, desc.ByteSize)) };
 }
 
 void NvrhiGpuDevice::DestroyShader(GpuShader handle)
@@ -716,11 +716,11 @@ GpuInputLayout NvrhiGpuDevice::CreateInputLayout(
     for (const auto& a : attribs)
     {
         nvrhi::VertexAttributeDesc va;
-        va.name          = a.name ? a.name : "";
-        va.format        = ToNvrhiFormat(a.format);
-        va.bufferIndex   = a.bufferIndex;
-        va.offset        = a.offset;
-        va.elementStride = a.stride;
+        va.name          = a.Name ? a.Name : "";
+        va.format        = ToNvrhiFormat(a.Format);
+        va.bufferIndex   = a.BufferIndex;
+        va.offset        = a.Offset;
+        va.elementStride = a.Stride;
         nvAttribs.push_back(va);
     }
     auto nvVs = m_Shaders.Get(vertexShader.id);
@@ -742,8 +742,8 @@ GpuBindingLayout NvrhiGpuDevice::CreateBindingLayout(const BindingLayoutDesc& de
 
     // Aggregate visibility from all items.
     uint32_t vis = 0;
-    for (const auto& item : desc.items)
-        vis |= (uint32_t)item.stage;
+    for (const auto& item : desc.Items)
+        vis |= (uint32_t)item.Stage;
     bld.visibility = static_cast<nvrhi::ShaderType>(vis);
     // Vulkan binding = offset + slot.  Slots are D3D12 register indices (t0, s0, b0 ...).
     // Offsets pack the per-type namespaces into a flat Vulkan binding space:
@@ -757,24 +757,24 @@ GpuBindingLayout NvrhiGpuDevice::CreateBindingLayout(const BindingLayoutDesc& de
     bld.bindingOffsets.setSamplerOffset(3);
     bld.bindingOffsets.setUnorderedAccessViewOffset(4);
 
-    for (const auto& item : desc.items)
+    for (const auto& item : desc.Items)
     {
-        switch (item.type)
+        switch (item.Type)
         {
         case BindingType::ConstantBuffer:
-            bld.bindings.push_back(nvrhi::BindingLayoutItem::ConstantBuffer(item.slot));
+            bld.bindings.push_back(nvrhi::BindingLayoutItem::ConstantBuffer(item.Slot));
             break;
         case BindingType::Texture:
-            bld.bindings.push_back(nvrhi::BindingLayoutItem::Texture_SRV(item.slot));
+            bld.bindings.push_back(nvrhi::BindingLayoutItem::Texture_SRV(item.Slot));
             break;
         case BindingType::Sampler:
-            bld.bindings.push_back(nvrhi::BindingLayoutItem::Sampler(item.slot));
+            bld.bindings.push_back(nvrhi::BindingLayoutItem::Sampler(item.Slot));
             break;
         case BindingType::StorageBuffer:
-            bld.bindings.push_back(nvrhi::BindingLayoutItem::RawBuffer_UAV(item.slot));
+            bld.bindings.push_back(nvrhi::BindingLayoutItem::RawBuffer_UAV(item.Slot));
             break;
         case BindingType::StorageTexture:
-            bld.bindings.push_back(nvrhi::BindingLayoutItem::Texture_UAV(item.slot));
+            bld.bindings.push_back(nvrhi::BindingLayoutItem::Texture_UAV(item.Slot));
             break;
         }
     }
@@ -793,34 +793,34 @@ GpuBindingSet NvrhiGpuDevice::CreateBindingSet(const BindingSetDesc& desc,
                                                  GpuBindingLayout layout)
 {
     nvrhi::BindingSetDesc bsd;
-    for (const auto& item : desc.items)
+    for (const auto& item : desc.Items)
     {
-        switch (item.type)
+        switch (item.Type)
         {
         case BindingType::ConstantBuffer:
             bsd.bindings.push_back(
-                nvrhi::BindingSetItem::ConstantBuffer(item.slot,
-                    m_Buffers.Get(item.buffer.id)));
+                nvrhi::BindingSetItem::ConstantBuffer(item.Slot,
+                    m_Buffers.Get(item.Buffer.id)));
             break;
         case BindingType::Texture:
             bsd.bindings.push_back(
-                nvrhi::BindingSetItem::Texture_SRV(item.slot,
-                    m_Textures.Get(item.texture.id)));
+                nvrhi::BindingSetItem::Texture_SRV(item.Slot,
+                    m_Textures.Get(item.TextureHandle.id)));
             break;
         case BindingType::Sampler:
             bsd.bindings.push_back(
-                nvrhi::BindingSetItem::Sampler(item.slot,
-                    m_Samplers.Get(item.sampler.id)));
+                nvrhi::BindingSetItem::Sampler(item.Slot,
+                    m_Samplers.Get(item.SamplerHandle.id)));
             break;
         case BindingType::StorageBuffer:
             bsd.bindings.push_back(
-                nvrhi::BindingSetItem::RawBuffer_UAV(item.slot,
-                    m_Buffers.Get(item.buffer.id)));
+                nvrhi::BindingSetItem::RawBuffer_UAV(item.Slot,
+                    m_Buffers.Get(item.Buffer.id)));
             break;
         case BindingType::StorageTexture:
             bsd.bindings.push_back(
-                nvrhi::BindingSetItem::Texture_UAV(item.slot,
-                    m_Textures.Get(item.texture.id)));
+                nvrhi::BindingSetItem::Texture_UAV(item.Slot,
+                    m_Textures.Get(item.TextureHandle.id)));
             break;
         }
     }
@@ -841,11 +841,11 @@ GpuBindlessLayout NvrhiGpuDevice::CreateBindlessLayout(const BindlessLayoutDesc&
     nvrhi::BindlessLayoutDesc bld;
     bld.visibility   = nvrhi::ShaderType::All;
     bld.firstSlot    = 0;
-    bld.maxCapacity  = desc.maxResources;
+    bld.maxCapacity  = desc.MaxResources;
 
     // registerSpaces entries map HLSL register spaces to this descriptor table.
     // Convention: textures→space1, buffers→space2, samplers→space3.
-    switch (desc.resourceType)
+    switch (desc.ResourceType)
     {
     case BindlessResourceType::Texture:
         bld.registerSpaces = { nvrhi::BindingLayoutItem::Texture_SRV(1) };
@@ -859,7 +859,7 @@ GpuBindlessLayout NvrhiGpuDevice::CreateBindlessLayout(const BindlessLayoutDesc&
     }
 
     BindlessLayoutEntry entry;
-    entry.maxCapacity = desc.maxResources;
+    entry.maxCapacity = desc.MaxResources;
     entry.handle      = m_Device->createBindlessLayout(bld);
     return { m_BindlessLayouts.Add(std::move(entry)) };
 }
@@ -932,20 +932,20 @@ DescriptorIndex NvrhiGpuDevice::WriteSampler(GpuDescriptorTable table,
 GpuFramebuffer NvrhiGpuDevice::CreateFramebuffer(const FramebufferDesc& desc)
 {
     nvrhi::FramebufferDesc nvDesc;
-    for (const auto& attach : desc.colorAttachments)
+    for (const auto& attach : desc.ColorAttachments)
     {
         nvrhi::FramebufferAttachment a;
-        a.texture    = m_Textures.Get(attach.texture.id);
-        a.setMipLevel(attach.mipLevel);
-        a.setArraySlice(attach.arraySlice);
+        a.texture    = m_Textures.Get(attach.Texture.id);
+        a.setMipLevel(attach.MipLevel);
+        a.setArraySlice(attach.ArraySlice);
         nvDesc.addColorAttachment(a);
     }
-    if (desc.depthAttachment.texture.IsValid())
+    if (desc.DepthAttachment.Texture.IsValid())
     {
         nvrhi::FramebufferAttachment a;
-        a.texture    = m_Textures.Get(desc.depthAttachment.texture.id);
-        a.setMipLevel(desc.depthAttachment.mipLevel);
-        a.setArraySlice(desc.depthAttachment.arraySlice);
+        a.texture    = m_Textures.Get(desc.DepthAttachment.Texture.id);
+        a.setMipLevel(desc.DepthAttachment.MipLevel);
+        a.setArraySlice(desc.DepthAttachment.ArraySlice);
         nvDesc.setDepthAttachment(a);
     }
 
@@ -967,9 +967,9 @@ std::pair<uint32_t, uint32_t> NvrhiGpuDevice::GetFramebufferSize(
     GpuFramebuffer handle) const
 {
     auto& fbDesc = m_FramebufferDescs.Get(handle.id);
-    if (!fbDesc.colorAttachments.empty())
+    if (!fbDesc.ColorAttachments.empty())
     {
-        auto nvTex = m_Textures.Get(fbDesc.colorAttachments[0].texture.id);
+        auto nvTex = m_Textures.Get(fbDesc.ColorAttachments[0].Texture.id);
         if (nvTex)
         {
             const auto& td = nvTex->getDesc();
@@ -986,47 +986,46 @@ static nvrhi::RenderState ToNvrhiRenderState(const GraphicsPipelineDesc& desc)
     nvrhi::RenderState rs;
 
     // Rasterizer
-    rs.rasterState.fillMode = desc.rasterizer.fillMode == FillMode::Wireframe
+    rs.rasterState.fillMode = desc.Rasterizer.FillMode == FillMode::Wireframe
         ? nvrhi::RasterFillMode::Wireframe : nvrhi::RasterFillMode::Fill;
-    rs.rasterState.cullMode              = ToNvrhiCullMode(desc.rasterizer.cullMode);
-    rs.rasterState.frontCounterClockwise = desc.rasterizer.frontCCW;
-    rs.rasterState.depthBias             = desc.rasterizer.depthBias;
-    rs.rasterState.slopeScaledDepthBias  = desc.rasterizer.slopeScaledDepthBias;
-    rs.rasterState.depthClipEnable       = desc.rasterizer.depthClipEnable;
+    rs.rasterState.cullMode              = ToNvrhiCullMode(desc.Rasterizer.CullMode);
+    rs.rasterState.frontCounterClockwise = desc.Rasterizer.FrontCCW;
+    rs.rasterState.depthBias             = desc.Rasterizer.DepthBias;
+    rs.rasterState.slopeScaledDepthBias  = desc.Rasterizer.SlopeScaledDepthBias;
+    rs.rasterState.depthClipEnable       = desc.Rasterizer.DepthClipEnable;
 
     // Depth-stencil
     auto& ds = rs.depthStencilState;
-    ds.depthTestEnable  = desc.depthStencil.depthTestEnable;
-    ds.depthWriteEnable = desc.depthStencil.depthWriteEnable;
-    ds.depthFunc        = ToNvrhiCompFunc(desc.depthStencil.depthFunc);
-    ds.stencilEnable    = desc.depthStencil.stencilEnable;
-    ds.stencilReadMask  = desc.depthStencil.stencilReadMask;
-    ds.stencilWriteMask = desc.depthStencil.stencilWriteMask;
+    ds.depthTestEnable  = desc.DepthStencil.DepthTestEnable;
+    ds.depthWriteEnable = desc.DepthStencil.DepthWriteEnable;
+    ds.depthFunc        = ToNvrhiCompFunc(desc.DepthStencil.DepthFunc);
+    ds.stencilEnable    = desc.DepthStencil.StencilEnable;
+    ds.stencilReadMask  = desc.DepthStencil.StencilReadMask;
+    ds.stencilWriteMask = desc.DepthStencil.StencilWriteMask;
 
     auto cvtStencilOp = [](const StencilOpDesc& s) {
         nvrhi::DepthStencilState::StencilOpDesc o;
-        o.failOp      = ToNvrhiStencilOp(s.failOp);
-        o.depthFailOp = ToNvrhiStencilOp(s.depthFailOp);
-        o.passOp      = ToNvrhiStencilOp(s.passOp);
-        o.stencilFunc = ToNvrhiCompFunc(s.func);
+        o.failOp      = ToNvrhiStencilOp(s.FailOp);
+        o.depthFailOp = ToNvrhiStencilOp(s.DepthFailOp);
+        o.passOp      = ToNvrhiStencilOp(s.PassOp);
+        o.stencilFunc = ToNvrhiCompFunc(s.Func);
         return o;
     };
-    ds.frontFaceStencil = cvtStencilOp(desc.depthStencil.frontFace);
-    ds.backFaceStencil  = cvtStencilOp(desc.depthStencil.backFace);
-
+    ds.frontFaceStencil = cvtStencilOp(desc.DepthStencil.FrontFace);
+    ds.backFaceStencil  = cvtStencilOp(desc.DepthStencil.BackFace);
     // Blend
     for (int t = 0; t < 8; ++t)
     {
-        const auto& src = desc.blend.renderTargets[t];
+        const auto& src = desc.Blend.RenderTargets[t];
         auto&       dst = rs.blendState.targets[t];
-        dst.blendEnable    = src.blendEnable;
-        dst.srcBlend       = ToNvrhiBlendFactor(src.srcBlend);
-        dst.destBlend      = ToNvrhiBlendFactor(src.dstBlend);
-        dst.blendOp        = ToNvrhiBlendOp(src.blendOp);
-        dst.srcBlendAlpha  = ToNvrhiBlendFactor(src.srcBlendAlpha);
-        dst.destBlendAlpha = ToNvrhiBlendFactor(src.dstBlendAlpha);
-        dst.blendOpAlpha   = ToNvrhiBlendOp(src.blendOpAlpha);
-        dst.colorWriteMask = static_cast<nvrhi::ColorMask>(src.writeMask);
+        dst.blendEnable    = src.BlendEnable;
+        dst.srcBlend       = ToNvrhiBlendFactor(src.SrcBlend);
+        dst.destBlend      = ToNvrhiBlendFactor(src.DstBlend);
+        dst.blendOp        = ToNvrhiBlendOp(src.BlendOperator);
+        dst.srcBlendAlpha  = ToNvrhiBlendFactor(src.SrcBlendAlpha);
+        dst.destBlendAlpha = ToNvrhiBlendFactor(src.DstBlendAlpha);
+        dst.blendOpAlpha   = ToNvrhiBlendOp(src.BlendOpAlpha);
+        dst.colorWriteMask = static_cast<nvrhi::ColorMask>(src.WriteMask);
     }
 
     return rs;
@@ -1036,16 +1035,16 @@ GpuGraphicsPipeline NvrhiGpuDevice::CreateGraphicsPipeline(
     const GraphicsPipelineDesc& desc, GpuFramebuffer framebuffer)
 {
     nvrhi::GraphicsPipelineDesc pd;
-    pd.VS          = m_Shaders.Get(desc.vs.id);
-    pd.PS          = m_Shaders.Get(desc.ps.id);
-    if (desc.hs.IsValid()) pd.HS = m_Shaders.Get(desc.hs.id);
-    if (desc.ds.IsValid()) pd.DS = m_Shaders.Get(desc.ds.id);
-    if (desc.gs.IsValid()) pd.GS = m_Shaders.Get(desc.gs.id);
-    pd.inputLayout = m_InputLayouts.Get(desc.inputLayout.id);
-    pd.primType    = ToNvrhiPrimType(desc.primType);
+    pd.VS          = m_Shaders.Get(desc.VS.id);
+    pd.PS          = m_Shaders.Get(desc.PS.id);
+    if (desc.HS.IsValid()) pd.HS = m_Shaders.Get(desc.HS.id);
+    if (desc.DS.IsValid()) pd.DS = m_Shaders.Get(desc.DS.id);
+    if (desc.GS.IsValid()) pd.GS = m_Shaders.Get(desc.GS.id);
+    pd.inputLayout = m_InputLayouts.Get(desc.InputLayout.id);
+    pd.primType    = ToNvrhiPrimType(desc.PrimType);
     pd.renderState = ToNvrhiRenderState(desc);
 
-    for (const auto& bl : desc.bindingLayouts)
+    for (const auto& bl : desc.BindingLayouts)
         pd.bindingLayouts.push_back(m_BindingLayouts.Get(bl.id));
 
     auto nvFb = m_Framebuffers.Get(framebuffer.id);
@@ -1061,8 +1060,8 @@ GpuComputePipeline NvrhiGpuDevice::CreateComputePipeline(
     const ComputePipelineDesc& desc)
 {
     nvrhi::ComputePipelineDesc pd;
-    pd.CS = m_Shaders.Get(desc.cs.id);
-    for (const auto& bl : desc.bindingLayouts)
+    pd.CS = m_Shaders.Get(desc.CS.id);
+    for (const auto& bl : desc.BindingLayouts)
         pd.bindingLayouts.push_back(m_BindingLayouts.Get(bl.id));
 
     return { m_ComputePipelines.Add(m_Device->createComputePipeline(pd)) };

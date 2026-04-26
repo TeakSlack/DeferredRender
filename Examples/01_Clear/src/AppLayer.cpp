@@ -56,7 +56,7 @@ void AppLayer::CreateFramebuffers()
 	for (GpuTexture colorTex : backBuffers)
 	{
 		FramebufferDesc fbDesc;
-		fbDesc.colorAttachments.push_back({ colorTex });
+		fbDesc.ColorAttachments.push_back({ colorTex });
 		m_Framebuffers.push_back(m_GpuDevice->CreateFramebuffer(fbDesc));
 	}
 }
@@ -142,10 +142,10 @@ void AppLayer::OnUpdate(float deltaTime)
 	GpuFramebuffer fb = m_Framebuffers[imageIdx];
 
 	TextureDesc bbDesc;
-	bbDesc.width     = m_Width;
-	bbDesc.height    = m_Height;
-	bbDesc.format    = GpuFormat::BGRA8_UNORM;
-	bbDesc.debugName = "Backbuffer";
+	bbDesc.Width	 = m_Width;
+	bbDesc.Height    = m_Height;
+	bbDesc.Format    = GpuFormat::BGRA8_UNORM;
+	bbDesc.DebugName = "Backbuffer";
 	RGMutableTextureHandle backbuffer = m_FrameGraph->ImportMutableTexture(
 		m_GpuDevice->GetBackBufferTextures()[imageIdx],
 		bbDesc,
@@ -163,11 +163,11 @@ void AppLayer::OnUpdate(float deltaTime)
 		[fb, clearColor](const ClearPassData& data, const RenderPassResources& res, ICommandContext* cmd)
 		{
 			RenderPassDesc passDesc;
-			passDesc.framebuffer = fb;
-			passDesc.clearDepth  = true;
-			passDesc.depthValue  = 1.0f;
-			passDesc.clearColor  = true;
-			passDesc.colorValue = clearColor;
+			passDesc.Framebuffer = fb;
+			passDesc.ClearDepth  = true;
+			passDesc.DepthValue  = 1.0f;
+			passDesc.ClearColor  = true;
+			passDesc.ColorValue = clearColor;
 			cmd->BeginRenderPass(passDesc);
 			cmd->EndRenderPass();
 		}

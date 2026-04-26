@@ -69,7 +69,7 @@ void AppLayer::CreateFramebuffers()
 	for (GpuTexture colorTex : backBuffers)
 	{
 		FramebufferDesc fbDesc;
-		fbDesc.colorAttachments.push_back({ colorTex });
+		fbDesc.ColorAttachments.push_back({ colorTex });
 		m_Framebuffers.push_back(m_GpuDevice->CreateFramebuffer(fbDesc));
 	}
 }
@@ -89,14 +89,14 @@ void AppLayer::CreatePipeline()
 {
 	// Create and upload vertex/index buffers
 	BufferDesc vbDesc;
-	vbDesc.byteSize = sizeof(vertices);
-	vbDesc.debugName = "VertexBuffer";
-	vbDesc.usage = BufferUsage::Vertex;
+	vbDesc.ByteSize = sizeof(vertices);
+	vbDesc.DebugName = "VertexBuffer";
+	vbDesc.Usage = BufferUsage::Vertex;
 
 	BufferDesc ibDesc;
-	ibDesc.byteSize = sizeof(indices);
-	ibDesc.debugName = "IndexBuffer";
-	ibDesc.usage = BufferUsage::Index;
+	ibDesc.ByteSize = sizeof(indices);
+	ibDesc.DebugName = "IndexBuffer";
+	ibDesc.Usage = BufferUsage::Index;
 
 	m_VertexBuffer = m_GpuDevice->CreateBuffer(vbDesc);
 	m_IndexBuffer = m_GpuDevice->CreateBuffer(ibDesc);
@@ -115,19 +115,18 @@ void AppLayer::CreatePipeline()
 	auto psBytecode = LoadBinary("shaders/quad_frag.spv");
 
 	ShaderDesc vsDesc;
-	vsDesc.stage = ShaderStage::Vertex;
-	vsDesc.debugName = "VertexShader";
-	vsDesc.entryPoint = "main";
-	vsDesc.bytecode = vsBytecode.data();
-	vsDesc.byteSize = vsBytecode.size();
+	vsDesc.Stage = ShaderStage::Vertex;
+	vsDesc.DebugName = "VertexShader";
+	vsDesc.EntryPoint = "main";
+	vsDesc.Bytecode = vsBytecode.data();
+	vsDesc.ByteSize = vsBytecode.size();
 	
 	ShaderDesc psDesc;
-	psDesc.stage = ShaderStage::Pixel;
-	psDesc.debugName = "PixelShader";
-	psDesc.entryPoint = "main";
-	psDesc.bytecode = psBytecode.data();
-	psDesc.byteSize = psBytecode.size();
-
+	psDesc.Stage = ShaderStage::Pixel;
+	psDesc.DebugName = "PixelShader";
+	psDesc.EntryPoint = "main";
+	psDesc.Bytecode = psBytecode.data();
+	psDesc.ByteSize = psBytecode.size();
 	GpuShader vsShader = m_GpuDevice->CreateShader(vsDesc);
 	GpuShader psShader = m_GpuDevice->CreateShader(psDesc);
 
@@ -139,12 +138,12 @@ void AppLayer::CreatePipeline()
 	GpuInputLayout inputLayout = m_GpuDevice->CreateInputLayout(attribs, vsShader);
 
 	GraphicsPipelineDesc pipelineDesc;
-	pipelineDesc.vs = vsShader;
-	pipelineDesc.ps = psShader;
-	pipelineDesc.inputLayout = inputLayout;
-	pipelineDesc.primType = PrimitiveType::TriangleList;
-	pipelineDesc.rasterizer.frontCCW = true;
-	pipelineDesc.rasterizer.cullMode = CullMode::Back;
+	pipelineDesc.VS = vsShader;
+	pipelineDesc.PS = psShader;
+	pipelineDesc.InputLayout = inputLayout;
+	pipelineDesc.PrimType = PrimitiveType::TriangleList;
+	pipelineDesc.Rasterizer.FrontCCW = true;
+	pipelineDesc.Rasterizer.CullMode = CullMode::Back;
 
 	CORE_ASSERT(!m_Framebuffers.empty(), "No framebuffers available to create pipeline");
 	m_Pipeline = m_GpuDevice->CreateGraphicsPipeline(pipelineDesc, m_Framebuffers[0]);
@@ -233,10 +232,10 @@ void AppLayer::OnUpdate(float deltaTime)
 	GpuFramebuffer fb = m_Framebuffers[imageIdx];
 
 	TextureDesc bbDesc;
-	bbDesc.width     = m_Width;
-	bbDesc.height    = m_Height;
-	bbDesc.format    = GpuFormat::BGRA8_UNORM;
-	bbDesc.debugName = "Backbuffer";
+	bbDesc.Width     = m_Width;
+	bbDesc.Height    = m_Height;
+	bbDesc.Format    = GpuFormat::BGRA8_UNORM;
+	bbDesc.DebugName = "Backbuffer";
 	RGMutableTextureHandle backbuffer = m_FrameGraph->ImportMutableTexture(
 		m_GpuDevice->GetBackBufferTextures()[imageIdx],
 		bbDesc,
@@ -252,11 +251,11 @@ void AppLayer::OnUpdate(float deltaTime)
 		[fb](const ClearPassData& data, const RenderPassResources& res, ICommandContext* cmd)
 		{
 			RenderPassDesc passDesc;
-			passDesc.framebuffer = fb;
-			passDesc.clearDepth  = true;
-			passDesc.depthValue  = 1.0f;
-			passDesc.clearColor  = true;
-			passDesc.colorValue = ClearValue{0.0f, 0.0f, 0.0f, 1.0f};
+			passDesc.Framebuffer = fb;
+			passDesc.ClearDepth  = true;
+			passDesc.DepthValue  = 1.0f;
+			passDesc.ClearColor  = true;
+			passDesc.ColorValue = ClearValue{0.0f, 0.0f, 0.0f, 1.0f};
 			cmd->BeginRenderPass(passDesc);
 			cmd->EndRenderPass();
 		}
@@ -272,9 +271,9 @@ void AppLayer::OnUpdate(float deltaTime)
 		[fb, this](const QuadPassData& data, const RenderPassResources& res, ICommandContext* cmd)
 		{
 			RenderPassDesc passDesc;
-			passDesc.framebuffer = fb;
-			passDesc.clearDepth  = false;
-			passDesc.clearColor  = false;
+			passDesc.Framebuffer = fb;
+			passDesc.ClearDepth  = false;
+			passDesc.ClearColor  = false;
 			cmd->BeginRenderPass(passDesc);
 			cmd->SetGraphicsPipeline(m_Pipeline);
 			cmd->SetVertexBuffer(0, m_VertexBuffer, 0);
@@ -284,8 +283,8 @@ void AppLayer::OnUpdate(float deltaTime)
 			cmd->SetScissor(0, 0, m_Width, m_Height);
 
 			DrawIndexedArgs drawArgs;
-			drawArgs.indexCount = 6;
-			drawArgs.instanceCount = 1;
+			drawArgs.IndexCount = 6;
+			drawArgs.InstanceCount = 1;
 
 			cmd->DrawIndexed(drawArgs);
 			cmd->EndRenderPass();

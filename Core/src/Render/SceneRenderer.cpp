@@ -118,15 +118,15 @@ bool SceneRenderer::EnsureMeshUploaded(AssetHandle<MeshAsset> handle)
     std::string ibName = "IB_" + asset->Name;
 
     BufferDesc vbDesc;
-    vbDesc.byteSize  = vbBytes;
-    vbDesc.usage     = BufferUsage::Vertex;
-    vbDesc.debugName = vbName.c_str();
+    vbDesc.ByteSize  = vbBytes;
+    vbDesc.Usage     = BufferUsage::Vertex;
+    vbDesc.DebugName = vbName.c_str();
     gpuMesh.VertexBuffer = m_GpuDevice->CreateBuffer(vbDesc);
 
     BufferDesc ibDesc;
-    ibDesc.byteSize  = ibBytes;
-    ibDesc.usage     = BufferUsage::Index;
-    ibDesc.debugName = ibName.c_str();
+    ibDesc.ByteSize  = ibBytes;
+    ibDesc.Usage     = BufferUsage::Index;
+    ibDesc.DebugName = ibName.c_str();
     gpuMesh.IndexBuffer = m_GpuDevice->CreateBuffer(ibDesc);
 
     if (!m_UploadPending)

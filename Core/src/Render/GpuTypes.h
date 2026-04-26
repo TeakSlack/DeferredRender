@@ -297,21 +297,21 @@ struct BindingLayoutDesc
 // ---------------------------------------------------------------------------
 struct BindingItem
 {
-    BindingType Type    = BindingType::ConstantBuffer;
-    uint32_t    Slot    = 0;
+    BindingType Type          = BindingType::ConstantBuffer;
+    uint32_t    Slot          = 0;
     GpuBuffer   Buffer;
-    GpuTexture  Texture;
-    GpuSampler  Sampler;
+    GpuTexture  TextureHandle;   // named *Handle to avoid conflict with static Texture()
+    GpuSampler  SamplerHandle;   // named *Handle to avoid conflict with static Sampler()
     static BindingItem ConstantBuffer(uint32_t slot, GpuBuffer buf)
         { BindingItem i; i.Type = BindingType::ConstantBuffer; i.Slot = slot; i.Buffer = buf; return i; }
     static BindingItem Texture(uint32_t slot, GpuTexture tex)
-        { BindingItem i; i.Type = BindingType::Texture; i.Slot = slot; i.Texture = tex; return i; }
+        { BindingItem i; i.Type = BindingType::Texture; i.Slot = slot; i.TextureHandle = tex; return i; }
     static BindingItem Sampler(uint32_t slot, GpuSampler smp)
-        { BindingItem i; i.Type = BindingType::Sampler; i.Slot = slot; i.Sampler = smp; return i; }
+        { BindingItem i; i.Type = BindingType::Sampler; i.Slot = slot; i.SamplerHandle = smp; return i; }
     static BindingItem StorageBuffer(uint32_t slot, GpuBuffer buf)
         { BindingItem i; i.Type = BindingType::StorageBuffer; i.Slot = slot; i.Buffer = buf; return i; }
     static BindingItem StorageTexture(uint32_t slot, GpuTexture tex)
-        { BindingItem i; i.Type = BindingType::StorageTexture; i.Slot = slot; i.Texture = tex; return i; }
+        { BindingItem i; i.Type = BindingType::StorageTexture; i.Slot = slot; i.TextureHandle = tex; return i; }
 };
 
 struct BindingSetDesc
@@ -388,7 +388,7 @@ struct RenderTargetBlendDesc
 
 struct BlendDesc
 {
-    RenderTargetBlendDesc renderTargets[8];
+    RenderTargetBlendDesc RenderTargets[8];
 };
 
 // ---------------------------------------------------------------------------
