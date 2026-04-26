@@ -231,6 +231,234 @@ void MMyLayer::OnDetach()
 
 ---
 
+## Importing and Rendering a Model
+
+### 1. Register the required submodules
+
+`AssetManager` and `SceneRenderer` are both `IEngineSubmodule` instances. Register them in `main.cpp` alongside your window system before calling `Run`.
+
+```cpp
+#include "Asset/AssetManager.h"
+#include "Render/SceneRenderer.h"
+
+int main()
+{
+    GLFWWindowSystem windowSystem;
+    AssetManager     assetManager;
+    SceneRenderer    sceneRenderer;
+    MyLayer          layer;
+
+    Engine::Get().RegisterSubmodule(&windowSystem);
+    Engine::Get().RegisterSubmodule(&assetManager);
+    Engine::Get().RegisterSubmodule(&sceneRenderer);
+    Engine::Get().PushLayer(&layer);
+    Engine::Get().Run();
+}
+```
+
+After device creation in `OnAttach`, hand the GPU device to the renderer:
+
+```cpp
+void MyLayer::OnAttach()
+{
+    // ... window + device setup (see Starting a New Project) ...
+
+    sceneRenderer->SetDevice(m_GpuDevice);
+}
+```
+
+`SceneRenderer` is retrieved from the engine later:
+
+```cpp
+SceneRenderer* sceneRenderer = Engine::Get().GetSubmodule<SceneRenderer>();
+```
+
+---
+
+### 2. Place assets under the asset root
+
+`AssetManager` resolves all paths relative to `<working directory>/Assets/`. Place your `.gltf` / `.glb` files there:
+
+```
+MyProject/
+    Assets/
+        models/
+            helmet.glb
+        textures/
+            skybox.png
+```
+
+A `.meta` sidecar file is created automatically in `Assets/.cache/` the first time a file is loaded. It stores stable UUIDs for each sub-asset (meshes, materials, textures) so handles remain consistent across reloads. You do not need to create or edit these files manually.
+
+---
+
+### 3. Load a glTF file
+
+`AssetManager::LoadGltf` is synchronous — it imports the file on the calling thread and registers every mesh, material, and texture immediately. All returned handles are in the `Ready` state.
+
+```cpp
+AssetManager* assets = Engine::Get().GetSubmodule<AssetManager>();
+
+GltfObject helmet = assets->LoadGltf("models/helmet.glb");
+```
+
+`GltfObject` contains three parallel/related arrays:
+
+| Field | Contents |
+|---|---|
+| `Meshes` | One `AssetHandle<MeshAsset>` per mesh primitive |
+| `MeshMaterials` | Parallel to `Meshes` — the material bound to each mesh |
+| `Materials` | All materials in the file, indexed by glTF material index |
+| `Textures` | All images in the file, indexed by glTF image index |
+
+`Meshes` and `MeshMaterials` are the arrays you will use most: `MeshMaterials[i]` is the correct material for `Meshes[i]`.
+
+Calling `LoadGltf` a second time with the same path returns the cached `GltfObject` without re-importing.
+
+---
+
+### 4. Load standalone textures (async)
+
+Standalone texture files (`.png`, `.jpg`, etc.) are loaded asynchronously via a thread pool. `LoadAsset<TextureAsset>` returns a `Pending` handle immediately; the asset becomes `Ready` after the engine calls `AssetManager::Tick` (which happens automatically each frame).
+
+```cpp
+AssetHandle<TextureAsset> skyboxTex = assets->LoadAsset<TextureAsset>("textures/skybox.png");
+
+// Check readiness before use (e.g. inside a render pass execute callback):
+TextureAsset* tex = assets->GetAsset(skyboxTex);
+if (tex) { /* ready */ }
+```
+
+`GetAsset` returns `nullptr` while the asset is still `Pending` or if it `Failed`.
+
+If you need RAII ownership, wrap the handle in an `AssetRef<T>`:
+
+```cpp
+AssetRef<TextureAsset> skyboxRef(skyboxTex); // increments ref count
+// ref count decremented when skyboxRef goes out of scope
+```
+
+`AssetHandle<T>` is non-owning. Use it inside ECS components where copy semantics matter and lifetime is managed elsewhere.
+
+---
+
+### 5. Create a scene and populate entities
+
+```cpp
+#include "ECS/Scene.h"
+#include "ECS/Components.h"
+
+Scene m_Scene("World");
+
+// Spawn one entity per mesh in the glTF file
+for (size_t i = 0; i < helmet.Meshes.size(); ++i)
+{
+    Entity e = m_Scene.CreateEntity("Helmet_" + std::to_string(i));
+    // CreateEntity automatically adds TagComponent and TransformComponent.
+
+    // Position the model in world space
+    auto& t = m_Scene.GetComponent<TransformComponent>(e);
+    t.Position = Vector3(0.0f, 0.0f, 0.0f);
+    t.Scale    = Vector3(1.0f);
+
+    // Attach the mesh and its paired material
+    m_Scene.AddComponent<MeshComponent>(e, MeshComponent{ helmet.Meshes[i] });
+    m_Scene.AddComponent<MaterialComponent>(e, MaterialComponent{ helmet.MeshMaterials[i] });
+}
+```
+
+`TagComponent` and `TransformComponent` are always present after `CreateEntity`. `MeshComponent` and `MaterialComponent` must be added explicitly.
+
+---
+
+### 6. Wire the scene into the frame loop
+
+`SceneRenderSystem::CollectAndSubmit` is the only bridge between the ECS and the renderer. Call it once per frame between `BeginFrame` and `RenderView`.
+
+```cpp
+#include "Render/SceneRenderSystem.h"
+#include "Render/RenderView.h"
+
+void MyLayer::OnUpdate(float /*deltaTime*/)
+{
+    SceneRenderer* renderer = Engine::Get().GetSubmodule<SceneRenderer>();
+
+    renderer->BeginFrame();
+
+    // Walk every entity with MeshComponent + MaterialComponent, build
+    // RenderPackets, compute world bounds, assign sort keys, and submit.
+    SceneRenderSystem::CollectAndSubmit(m_Scene, m_CameraPosition, *renderer);
+
+    // Cull against the view frustum and sort by material + depth.
+    RenderView view;
+    view.View           = m_ViewMatrix;
+    view.Projection     = m_ProjMatrix;
+    view.ViewProjection = m_ProjMatrix * m_ViewMatrix;
+    view.Position       = m_CameraPosition;
+    view.NearZ          = 0.1f;
+    view.FarZ           = 1000.0f;
+    view.ViewFrustum    = Frustum(view.ViewProjection);
+    view.Viewport       = { 0, 0, m_Width, m_Height };
+    renderer->RenderView(view);
+
+    // --- FrameGraph ---
+    m_FG->Reset();
+    // ... import backbuffer, add passes ...
+
+    // Inside a pass execute callback, draw visible packets:
+    //
+    // [renderer](const PassData& d, const RenderPassResources& res, ICommandContext* cmd) {
+    //     for (const RenderPacket* packet : renderer->GetVisiblePackets()) {
+    //         const SceneRenderer::GpuMesh* gpu = renderer->GetGpuMesh(packet->Mesh);
+    //         if (!gpu) continue; // mesh still uploading
+    //
+    //         cmd->SetVertexBuffer(0, gpu->VertexBuffer);
+    //         cmd->SetIndexBuffer(gpu->IndexBuffer, GpuFormat::R32_UINT);
+    //         cmd->DrawIndexed({ gpu->IndexCount });
+    //     }
+    // }
+
+    m_FG->Compile();
+    m_Cmd->Open();
+    m_FG->Execute(m_GpuDevice, m_Cmd.get());
+    m_Cmd->Close();
+    m_GpuDevice->ExecuteCommandContext(*m_Cmd);
+    m_RenderDevice->Present();
+
+    renderer->EndFrame();
+}
+```
+
+`Submit` silently drops packets whose mesh asset is still `Pending`. Those packets reappear automatically the next frame once the upload completes — no special handling is required.
+
+---
+
+### 7. Customising material render bins
+
+`MaterialAsset::DrawBin` controls which render passes include a mesh. The default is `DrawBinFlags::ForwardOpaque`. You can override this after loading:
+
+```cpp
+MaterialAsset* mat = assets->GetAsset(helmet.MeshMaterials[0]);
+if (mat)
+{
+    mat->DrawBin    = DrawBinFlags::DepthPrepass | DrawBinFlags::ForwardOpaque;
+    mat->IsOccluder = true; // participates in occlusion culling
+}
+```
+
+Inside a render pass execute callback, filter packets by bin before drawing:
+
+```cpp
+for (const RenderPacket* packet : renderer->GetVisiblePackets())
+{
+    if (!(packet->Bin & DrawBinFlags::ForwardOpaque))
+        continue;
+    // ... draw ...
+}
+```
+
+---
+
 ## FrameGraph
 
 The FrameGraph is a Frostbite-style render graph. Each pass declares its resource reads and writes in a **setup** lambda; the graph infers barriers, culls unused passes, and manages transient resource lifetimes automatically. The **execute** lambda records GPU commands.
