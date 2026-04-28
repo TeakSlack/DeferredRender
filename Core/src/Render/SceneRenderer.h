@@ -8,6 +8,7 @@
 #include "Render/RenderPacket.h"
 #include "Render/RenderView.h"
 #include "Render/IGpuDevice.h"
+#include "Render/SubmittedLight.h"
 #include "Asset/Asset.h"
 #include "Util/UUID.h"
 
@@ -64,6 +65,21 @@ public:
     // If the mesh asset is still Pending, the packet is silently dropped —
     // it will appear automatically next frame once the async load completes.
     void Submit(const RenderPacket& packet);
+	void SubmitLight(const SubmittedLight& light);
+
+    // Culls submitted lights against view frusum
+    // Call after RenderView - reuses the same view frustum
+	// Directional lights always survive culling since they affect the whole scene
+	void CullLights(const ::RenderView& view);
+
+	// Returns the list of visible lights after culling. Call after CullLights.
+	const std::vector<SubmittedLight>& GetVisibleLights() const { return m_VisibleLights; }
+
+    // GPU buffer management — call once per frame after CullLights().
+    // Uploads SubmittedLightData[] to the persistent light buffer.
+    // Returns the GpuBuffer and count for FrameGraph import.
+    struct LightGpuData { GpuBuffer Buffer; uint32_t Count; };
+    LightGpuData FlushLights(ICommandContext* cmd);
 
     // Cull submitted packets against view.ViewFrustum and sort by SortKey.
     // Fills the visible packet list — call GetVisiblePackets() afterwards to
@@ -96,6 +112,12 @@ private:
     // during RenderView — declared here to avoid per-frame heap allocation.
     std::vector<RenderPacket>  m_SubmittedPackets;
     std::vector<RenderPacket*> m_VisiblePackets;
+
+    // ---- Per-frame light storage ----------------------------------------
+    std::vector<SubmittedLight> m_SubmittedLights;
+    std::vector<SubmittedLight> m_VisibleLights;
+	GpuBuffer m_LightBuffer; // persistent GPU buffer for light data, updated each frame
+    uint32_t m_MaxLights = 1024;
 
     // Flush all pending mesh uploads to the GPU. Called at the start of
     // RenderView so all uploads that accumulated during Submit() are sent

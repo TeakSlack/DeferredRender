@@ -298,4 +298,5 @@ void MeshBinner::RebuildSceneBindingSet()
 			{ BindingType::StorageBuffer, 3, m_MaterialBuffer          },
 		};
 		bin.Result.BindingSet = m_Device->CreateBindingSet(setDesc, m_SceneBindingLayout);
+	}
 }

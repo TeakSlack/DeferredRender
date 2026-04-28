@@ -3,6 +3,7 @@
 
 #include "ECS/Components.h"
 #include "Math/Vector3.h"
+#include <cassert>
 
 struct SubmittedLight
 {
@@ -40,5 +41,6 @@ struct alignas(16) SubmittedLightData
     float    OuterConeCos;
     float    _pad[2];
 };
+static_assert(sizeof(SubmittedLightData) == 64, "SubmittedLightData must be 16-byte aligned and fit in 4 vec4s");
 
 #endif // SUBMITTED_LIGHT_H

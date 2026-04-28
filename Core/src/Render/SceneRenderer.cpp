@@ -9,6 +9,12 @@ void SceneRenderer::SetDevice(IGpuDevice* device)
 {
     m_GpuDevice    = device;
     m_UploadContext = device->CreateCommandContext();
+
+    BufferDesc lightDesc;
+    lightDesc.Usage = BufferUsage::Storage;
+    lightDesc.DebugName = "Light Buffer";
+    lightDesc.ByteSize = sizeof(SubmittedLightData) * m_MaxLights;
+    m_LightBuffer = device->CreateBuffer(lightDesc);
 }
 
 void SceneRenderer::ReleaseGpuResources()
@@ -47,6 +53,28 @@ void SceneRenderer::Submit(const RenderPacket& packet)
     m_SubmittedPackets.push_back(packet);
 }
 
+void SceneRenderer::SubmitLight(const SubmittedLight& light)
+{
+    m_SubmittedLights.push_back(light);
+}
+
+void SceneRenderer::CullLights(const::RenderView& view)
+{
+    m_VisibleLights.clear();
+
+    for (const SubmittedLight& light : m_SubmittedLights)
+    {
+        if (light.Type == LightType::Directional)
+        {
+            m_VisibleLights.push_back(light);
+            continue;
+        }
+
+        if (view.ViewFrustum.IntersectsAABB(light.BoundsMin, light.BoundsMax))
+            m_VisibleLights.push_back(light);
+    }
+}
+
 void SceneRenderer::FlushUploads()
 {
     if (!m_UploadPending)
@@ -55,6 +83,32 @@ void SceneRenderer::FlushUploads()
     m_GpuDevice->ExecuteCommandContext(*m_UploadContext);
     m_GpuDevice->WaitForIdle();
     m_UploadPending = false;
+}
+
+SceneRenderer::LightGpuData SceneRenderer::FlushLights(ICommandContext* cmd)
+{
+    uint32_t count = static_cast<uint32_t>(m_VisibleLights.size());
+    if (count == 0) return { m_LightBuffer, 0 };
+
+    // Stack-allocate the GPU structs for this frame
+    std::vector<SubmittedLightData> gpuLights(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const SubmittedLight& sl = m_VisibleLights[i];
+        gpuLights[i].Position = sl.Position;
+        gpuLights[i].Range = sl.Range;
+        gpuLights[i].Color = sl.Color;
+        gpuLights[i].InvRangeSq = sl.Range > 0.f ? 1.f / (sl.Range * sl.Range) : 0.f;
+        gpuLights[i].Direction = sl.Direction;
+        gpuLights[i].Type = static_cast<uint32_t>(sl.Type);
+        gpuLights[i].InnerConeCos = sl.InnerConeCos;
+        gpuLights[i].OuterConeCos = sl.OuterConeCos;
+    }
+
+    cmd->WriteBuffer(m_LightBuffer, gpuLights.data(),
+        count * sizeof(SubmittedLightData));
+
+    return { m_LightBuffer, count };
 }
 
 void SceneRenderer::RenderView(const ::RenderView& view)
