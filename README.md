@@ -27,7 +27,7 @@ This project only officially supports Windows at the moment.
   `IRenderDevice`, `IGpuDevice`, and `ICommandContext` fully abstract Vulkan and D3D12 implementation details using the PIMPL pattern. Switching backends simply requires a constructor swap.
 
   ### RenderPacket Design
-  Plain data, no virtual dispatch, sort key that encodes layer, translucency, material, and depth in a single `uint64_t`. Arvo's AABB transform method for world bounds. Previous-frame transform for TAA velocity. Clean separation of submission policy (`SceneRenderSystem`) from rendering policy (passes).
+  Plain data, no virtual dispatch, sort key that encodes layer, translucency, material, and depth in a single `uint64_t`. Arvo's AABB transform method for world bounds. Previous-frame transform for TAA velocity. Clean separation of submission policy (`SceneRenderSystem`) from rendering policy (`MeshBinner` and passes).
 
   ## Setting Up
 
@@ -256,14 +256,23 @@ int main()
 }
 ```
 
-After device creation in `OnAttach`, hand the GPU device to the renderer:
+After device creation in `OnAttach`, initialise both the renderer and the binner, then connect them:
 
 ```cpp
+MeshBinner m_Binner; // member of your layer
+
 void MyLayer::OnAttach()
 {
     // ... window + device setup (see Starting a New Project) ...
 
     sceneRenderer->SetDevice(m_GpuDevice);
+
+    MeshBinner::Config binnerCfg; // all fields have sensible defaults
+    m_Binner.Init(m_GpuDevice, binnerCfg);
+
+    // Give SceneRenderer a pointer to the binner so RegisterTexture
+    // for shadow maps routes into the shared bindless table.
+    sceneRenderer->SetBinner(&m_Binner);
 }
 ```
 
@@ -405,18 +414,18 @@ void MyLayer::OnUpdate(float /*deltaTime*/)
     m_FG->Reset();
     // ... import backbuffer, add passes ...
 
-    // Inside a pass execute callback, draw visible packets:
+    // Build the binner from the culled packet list, then use it inside passes.
+    // Pending mesh assets are silently skipped and will appear next frame.
+    m_Binner.Build(renderer->GetVisiblePackets(), m_Cmd.get());
+
+    // Inside a pass execute callback, draw via indirect:
     //
-    // [renderer](const PassData& d, const RenderPassResources& res, ICommandContext* cmd) {
-    //     for (const RenderPacket* packet : renderer->GetVisiblePackets()) {
-    //         const SceneRenderer::GpuMesh* gpu = renderer->GetGpuMesh(packet->Mesh);
-    //         if (!gpu) continue; // mesh still uploading
-    //
-    //         cmd->SetVertexBuffer(0, gpu->VertexBuffer);
-    //         cmd->SetIndexBuffer(gpu->IndexBuffer, GpuFormat::R32_UINT);
-    //         cmd->DrawIndexed({ gpu->IndexCount });
-    //     }
-    // }
+    // auto& bin = m_Binner.GetBin(DrawBinFlags::ForwardOpaque);
+    // cmd->SetVertexBuffer(0, m_Binner.MegaVertexBuffer());
+    // cmd->SetIndexBuffer(m_Binner.MegaIndexBuffer(), GpuFormat::R32_UINT);
+    // cmd->SetBindingSet(bin.BindingSet, 0);
+    // cmd->SetBindlessTable(m_Binner.TextureTable(), 1);
+    // cmd->DrawIndexedIndirectCount(bin.DrawArgsBuffer, 0, bin.DrawCountBuffer, 0, bin.CpuDrawCount);
 
     m_FG->Compile();
     m_Cmd->Open();
@@ -429,7 +438,7 @@ void MyLayer::OnUpdate(float /*deltaTime*/)
 }
 ```
 
-`Submit` silently drops packets whose mesh asset is still `Pending`. Those packets reappear automatically the next frame once the upload completes — no special handling is required.
+Packets whose mesh asset is still `Pending` are silently skipped inside `MeshBinner::Build`. They reappear automatically the next frame once the upload completes — no special handling is required.
 
 ---
 
@@ -663,40 +672,94 @@ m_RenderDevice->Present();
 
 After `Compile()`, any pass not contributing to the `backbuffer` (e.g. a disconnected debug pass) is culled. Transient `hdr` and `depth` are allocated for the Forward→Tonemap window and released once the Tonemap pass completes.
 
-## Accessing the Binning System
+## MeshBinner
 
-Imported models may be placed into a bin (`DepthPrePass`, `ForwardOpaque`, `Shadow`, or `Transparent`), which are sorted by the `MeshBinner`. The `MeshBinner` uses a bindless system for mesh rendering, outputting a mega vertex and index buffer which may be drawn using `cmd->DrawIndexedIndirectCount()`.
+`MeshBinner` owns the bindless rendering pipeline: a mega vertex buffer, a mega index buffer, a material buffer, and a shared bindless texture table. Each frame it ingests the culled packet list from `SceneRenderer` and emits one indirect draw call per mesh per active bin.
+
+### Initialisation
 
 ```cpp
-// In OnUpdate
-m_Binner.Build(renderer->GetVisiblePackets, m_Cmd.get());
+MeshBinner::Config cfg;  // all fields have sensible defaults
+cfg.InitialMaxVertices  = 1000000;
+cfg.InitialMaxIndices   = 1000000;
+cfg.MaxMaterials        = 4096;
+cfg.MaxDrawsPerBin      = 8192;
+cfg.MaxInstancesPerBin  = 65535;
+cfg.MaxTextures         = 65535;
 
-// Import binner outputs so FrameGraph tracks their layout
-auto& bin = m_Binner.GetBin(DrawBinFlags::ForwardOpaque);
-auto drawArgs = m_FG->ImportBuffer(bin.DrawArgsBuffer);
-auto drawCount = m_FG->ImportBuffer(bin.DrawCountBuffer);
+m_Binner.Init(m_GpuDevice, cfg);
+sceneRenderer->SetBinner(&m_Binner); // routes SceneRenderer::RegisterTexture here
+```
 
-// Forward pass
-struct ForwardPassData { RGBufferHandle drawArgs, drawCount; 
+### Per-frame build
+
+Call `Build` after `SceneRenderer::RenderView` has filled the visible packet list. Mesh uploads are handled internally — packets whose asset is still `Pending` are silently skipped and reappear automatically next frame.
+
+```cpp
+m_Binner.Build(renderer->GetVisiblePackets(), cmd);
+```
+
+### Drawing a bin
+
+Each bin's `BinResult` contains everything needed to issue an indirect draw:
+
+| Field | Contents |
+|---|---|
+| `DrawArgsBuffer` | `DrawIndexedArgs[]` — one entry per unique mesh |
+| `InstanceBuffer` | `PerInstanceData[]` — world matrix + material index per instance |
+| `DrawCountBuffer` | `uint32_t` — surviving draw count after GPU culling |
+| `BindingSet` | Binds `InstanceBuffer` (t2) and `MaterialBuffer` (t3) |
+| `CpuDrawCount` | CPU-side upper bound before culling |
+
+```cpp
+auto& bin      = m_Binner.GetBin(DrawBinFlags::ForwardOpaque);
+auto  drawArgs = m_FG->ImportBuffer(bin.DrawArgsBuffer);
+auto  drawCount= m_FG->ImportBuffer(bin.DrawCountBuffer);
+
+struct ForwardPassData { RGBufferHandle drawArgs, drawCount;
                          RGMutableTextureHandle rt, depth; };
-auto& forwardPass = m_FG->AddCallbackPass<ForwardPassData>("Forward",
+
+m_FG->AddCallbackPass<ForwardPassData>("Forward",
     [&](PassBuilder& builder, ForwardPassData& data)
     {
-        data.rt   = builder.WriteTexture(builder.CreateTexture(rtDesc));
-        data.depth = builder.WriteDepth(builder.CreateTexture(depthDesc));
-        data.drawArgs = builder.ReadBuffer(drawArgs);
+        data.rt        = builder.WriteTexture(builder.CreateTexture(rtDesc));
+        data.depth     = builder.WriteDepth(builder.CreateTexture(depthDesc));
+        data.drawArgs  = builder.ReadBuffer(drawArgs);
         data.drawCount = builder.ReadBuffer(drawCount);
     },
-    [this](const ForwardPassData& data, const RenderPassResources& res, ICommandContext* cmd)
+    [this, &bin](const ForwardPassData& data, const RenderPassResources& res, ICommandContext* cmd)
     {
         cmd->SetGraphicsPipeline(m_ForwardPipeline);
         cmd->SetVertexBuffer(0, m_Binner.MegaVertexBuffer());
         cmd->SetIndexBuffer(m_Binner.MegaIndexBuffer(), GpuFormat::R32_UINT);
-        cmd->SetBindingSet(bin.BindingSet, 0);     // InstanceBuffer + MaterialBuffer
-        cmd->SetBindlessTable(m_Binner.TextureTable(), 1);     // all textures
+        cmd->SetBindingSet(bin.BindingSet, 0);          // InstanceBuffer + MaterialBuffer
+        cmd->SetBindlessTable(m_Binner.TextureTable(), 1); // all textures
         cmd->DrawIndexedIndirectCount(
-            res.GetBuffer(d.drawArgs),   0,
-            res.GetBuffer(d.drawCount),  0,
-            m_Binner.GetBin(DrawBinFlags::ForwardOpaque).CpuDrawCount);
+            res.GetBuffer(data.drawArgs),  0,
+            res.GetBuffer(data.drawCount), 0,
+            bin.CpuDrawCount);
     });
 ```
+
+Available bins:
+
+| Flag | Intended pass |
+|---|---|
+| `DrawBinFlags::DepthPrepass` | Z-prepass |
+| `DrawBinFlags::ForwardOpaque` | Opaque forward/deferred geometry |
+| `DrawBinFlags::Shadow` | Shadow map rendering |
+| `DrawBinFlags::Transparent` | Alpha-blended geometry |
+
+### Registering textures
+
+Asset textures (albedo, normal, etc.) are registered automatically when a material is first encountered during `Build`. For raw GPU textures such as shadow maps, use the overload that takes a `GpuTexture` directly — either via the binner or through `SceneRenderer` as a convenience:
+
+```cpp
+// Via the binner (preferred for shadow map render targets):
+uint32_t shadowSlot = m_Binner.RegisterTexture(shadowMapTexture);
+
+// Via SceneRenderer (requires SetBinner to have been called):
+uint32_t shadowSlot = sceneRenderer->RegisterTexture(shadowMapTexture);
+```
+
+Both overloads write into the same bindless table returned by `m_Binner.TextureTable()` and share the same slot counter, so slots from either call are valid in the same shader binding.

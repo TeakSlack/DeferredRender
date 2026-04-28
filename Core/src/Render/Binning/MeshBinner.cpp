@@ -8,6 +8,13 @@ void MeshBinner::Init(IGpuDevice* device, const Config& config)
 	m_Device = device;
 	m_AssetManager = Engine::Get().GetSubmodule<AssetManager>();
 
+	m_MaxTextures = config.MaxTextures;
+	BindlessLayoutDesc bindlessDesc;
+	bindlessDesc.ResourceType = BindlessResourceType::Texture;
+	bindlessDesc.MaxResources = m_MaxTextures;
+	m_TextureTableLayout = device->CreateBindlessLayout(bindlessDesc);
+	m_TextureTable = device->CreateDescriptorTable(m_TextureTableLayout);
+
 	// --- Vertex mega buffer ----
 	m_MaxVertices = config.InitialMaxVertices;
 	BufferDesc vbDesc;
@@ -30,14 +37,7 @@ void MeshBinner::Init(IGpuDevice* device, const Config& config)
 	matDesc.ByteSize = m_MaxMaterials * sizeof(GpuMaterialData);
 	matDesc.Usage = BufferUsage::Storage;
 	matDesc.DebugName = "MegaMat";
-	m_MaterialBuffer = m_Device->CreateBuffer(matDesc);
-
-	// ---- Bindless texture table ----
-	BindlessLayoutDesc bindlessDesc;
-	bindlessDesc.ResourceType = BindlessResourceType::Texture;
-	bindlessDesc.MaxResources = config.MaxTextures;
-	m_TextureTableLayout = m_Device->CreateBindlessLayout(bindlessDesc);
-	m_TextureTable = m_Device->CreateDescriptorTable(m_TextureTableLayout);
+	m_MaterialBuffer = m_Device->CreateBuffer(matDesc);	
 
 	// ---- B&W checkered texture for missing textures ----
 	TextureDesc checkerDesc;
@@ -97,7 +97,8 @@ void MeshBinner::Build(std::span<const RenderPacket* const> packets, ICommandCon
 	for (auto& [meshId, indices] : meshGroups)
 	{
 		AssetHandle<MeshAsset> meshHandle = packets[indices[0]]->Mesh;
-		const MeshRecord& mesh = EnsureMeshAppended(meshHandle, cmd);
+		const MeshRecord* mesh = EnsureMeshAppended(meshHandle, cmd);
+		if (!mesh) continue; // asset still pending — skip this frame
 
 		for (int b = 0; b < kNumBins; b++)
 		{
@@ -123,10 +124,10 @@ void MeshBinner::Build(std::span<const RenderPacket* const> packets, ICommandCon
 			if (instanceCount == 0) continue;
 
 			m_Bins[b].DrawArgsStaging.push_back(DrawIndexedArgs{
-				.IndexCount = mesh.IndexCount,
+				.IndexCount = mesh->IndexCount,
 				.InstanceCount = instanceCount,
-				.StartIndex = mesh.FirstIndex,
-				.BaseVertex = static_cast<int32_t>(mesh.BaseVertex),
+				.StartIndex = mesh->FirstIndex,
+				.BaseVertex = static_cast<int32_t>(mesh->BaseVertex),
 				.StartInstance = firstInstance,  // shader reads g_Instances[SV_InstanceID]
 				});
 			m_Bins[b].Result.CpuDrawCount++;
@@ -174,13 +175,13 @@ MeshBinner::BinResult& MeshBinner::GetBin(DrawBinFlags bin)
 	return m_Bins[0].Result; // Fallback to avoid compiler warning
 }
 
-const MeshBinner::MeshRecord& MeshBinner::EnsureMeshAppended(AssetHandle<MeshAsset> handle, ICommandContext* cmd)
+const MeshBinner::MeshRecord* MeshBinner::EnsureMeshAppended(AssetHandle<MeshAsset> handle, ICommandContext* cmd)
 {
 	auto it = m_MeshRecords.find(handle.id);
-	if (it != m_MeshRecords.end()) return it->second;
+	if (it != m_MeshRecords.end()) return &it->second;
 
 	const MeshAsset* mesh = m_AssetManager->GetAsset(handle);
-	CORE_ASSERT(mesh, "Caller must guarantee asset is Ready"); // caller guarantees asset is Ready
+	if (!mesh) return nullptr; // asset still pending — try again next frame
 
 	uint32_t numVerts = static_cast<uint32_t>(mesh->Vertices.size());
 	uint32_t numIdx = static_cast<uint32_t>(mesh->Indices.size());
@@ -197,7 +198,7 @@ const MeshBinner::MeshRecord& MeshBinner::EnsureMeshAppended(AssetHandle<MeshAss
 	rec = { m_NextVertex, m_NextIndex, numIdx };
 	m_NextVertex += numVerts;
 	m_NextIndex += numIdx;
-	return rec;
+	return &rec;
 }
 
 void MeshBinner::GrowMegaVB(uint32_t requiredVertices, ICommandContext* cmd)
@@ -265,19 +266,25 @@ uint32_t MeshBinner::RegisterMaterial(AssetHandle<MaterialAsset> material, IComm
 
 uint32_t MeshBinner::RegisterTexture(AssetHandle<TextureAsset> texture)
 {
-	if (!texture.IsValid()) return m_TextureSlots[{}]; // white fallback slot 0
+	if (!texture.IsValid()) return m_TextureSlots[{}]; // checker fallback slot 0
 
 	auto it = m_TextureSlots.find(texture.id);
 	if (it != m_TextureSlots.end()) return it->second;
 
-	auto* assets = Engine::Get().GetSubmodule<AssetManager>();
 	const TextureAsset* tex = m_AssetManager->GetAsset(texture);
-	// Asset may still be Pending — fall back to white, try again next frame.
+	// Asset may still be Pending — fall back to checker, try again next frame.
 	if (!tex) return 0;
 
 	uint32_t slot = m_NextTextureSlot++;
 	m_Device->WriteTexture(m_TextureTable, tex->Texture, slot);
 	m_TextureSlots[texture.id] = slot;
+	return slot;
+}
+
+uint32_t MeshBinner::RegisterTexture(GpuTexture texture)
+{
+	uint32_t slot = m_NextTextureSlot++;
+	m_Device->WriteTexture(m_TextureTable, texture, slot);
 	return slot;
 }
 

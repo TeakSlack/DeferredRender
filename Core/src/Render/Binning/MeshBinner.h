@@ -7,7 +7,9 @@
 #include "Render/IGpuDevice.h"
 #include "Asset/Asset.h"
 #include "Asset/AssetManager.h"
+#include "Util/UUID.h"
 #include <span>
+#include <unordered_map>
 
 class MeshBinner
 {
@@ -17,9 +19,9 @@ public:
 		uint32_t InitialMaxVertices = 1000000;
 		uint32_t InitialMaxIndices = 1000000;
 		uint32_t MaxMaterials = 4096;
-		uint32_t MaxTextures = 65535;
 		uint32_t MaxDrawsPerBin = 8192;
 		uint32_t MaxInstancesPerBin = 65535;
+		uint32_t MaxTextures = 65535;
 	};
 
 	// Per-bin result — valid until the next Build() call.
@@ -28,7 +30,7 @@ public:
 		GpuBuffer	  DrawArgsBuffer;  // DrawIndexedArgs[], GPU-readable
 		GpuBuffer	  InstanceBuffer;  // PerInstanceData[], GPU-readable
 		GpuBuffer	  DrawCountBuffer; // uint32_t — GPU culling writes here
-		GpuBindingSet BindingSet;	   // InstanceBuffer (t2) + MaterialBuffer (t3) + TextureTable (t4)		
+		GpuBindingSet BindingSet;	   // InstanceBuffer (t2) + MaterialBuffer (t3) + TextureTable (t4)
 		uint32_t	  CpuDrawCount;    // CPU-side count before culling
 	};
 
@@ -38,7 +40,12 @@ public:
 	GpuBuffer MegaVertexBuffer() const { return m_MegaVB; }
 	GpuBuffer MegaIndexBuffer() const { return m_MegaIB; }
 	GpuDescriptorTable TextureTable() const { return m_TextureTable; }
-	
+
+	// Register an asset texture; returns its bindless slot.
+	uint32_t RegisterTexture(AssetHandle<TextureAsset> texture);
+	// Register a raw GPU texture (e.g. a shadow map); returns its bindless slot.
+	uint32_t RegisterTexture(GpuTexture texture);
+
 private:
 	struct alignas(16) GpuMaterialData
 	{
@@ -81,11 +88,10 @@ private:
 	};
 	BinState m_Bins[kNumBins];
 
-	const MeshRecord& EnsureMeshAppended(AssetHandle<MeshAsset> handle, ICommandContext* cmd);
+	const MeshRecord* EnsureMeshAppended(AssetHandle<MeshAsset> handle, ICommandContext* cmd);
 	void              GrowMegaVB(uint32_t requiredVertices, ICommandContext* cmd);
 	void              GrowMegaIB(uint32_t requiredIndices, ICommandContext* cmd);
 	uint32_t		  RegisterMaterial(AssetHandle<MaterialAsset> material, ICommandContext* cmd);
-	uint32_t		  RegisterTexture(AssetHandle<TextureAsset> texture);
 	void			  RebuildSceneBindingSet();
 
 	IGpuDevice*			m_Device = nullptr;
@@ -98,11 +104,12 @@ private:
 	uint32_t			m_NextIndex = 0;
 	uint32_t			m_MaxIndices = 0;
 
-	GpuBindlessLayout	m_TextureTableLayout;
 	GpuDescriptorTable	m_TextureTable;
+	GpuBindlessLayout	m_TextureTableLayout;
 	GpuTexture			m_MissingTexture;
 	GpuSampler			m_DefaultSampler;
 	uint32_t			m_NextTextureSlot = 0;
+	uint32_t			m_MaxTextures = 0;
 
 	GpuBuffer m_MaterialBuffer;
 	uint32_t  m_MaxMaterials;
