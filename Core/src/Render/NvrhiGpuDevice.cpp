@@ -411,6 +411,18 @@ public:
         m_GfxState.indirectParams = nullptr;
     }
 
+    void DrawIndexedIndirectCount(GpuBuffer argsBuffer, uint64_t argsOffset,
+        GpuBuffer countBuffer, uint64_t countOffset,
+        uint32_t drawMaxCount = 0)
+    {
+        m_GfxState.indirectParams = m_Device->GetBuffer(argsBuffer.id);
+        m_GfxState.indirectCountBuffer = m_Device->GetBuffer(countBuffer.id);
+        m_GfxStateDirty = true;
+        FlushGraphicsState();
+        m_CmdList->drawIndexedIndirectCount(argsOffset, countOffset, drawMaxCount);
+        m_GfxState.indirectParams = nullptr;
+    }
+
     // ---- Compute ----
     void SetComputePipeline(GpuComputePipeline pipeline) override
     {

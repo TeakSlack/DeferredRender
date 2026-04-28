@@ -85,6 +85,9 @@ public:
     virtual void DrawIndirect(GpuBuffer argsBuffer, uint64_t byteOffset = 0) = 0;
     virtual void DrawIndexedIndirect(GpuBuffer argsBuffer,
                                       uint64_t byteOffset = 0) = 0;
+    virtual void DrawIndexedIndirectCount(GpuBuffer argsBuffer, uint64_t argsOffset,
+                                      GpuBuffer countBuffer, uint64_t countOffset,
+                                      uint32_t drawMaxCount = 0) = 0;
 
     // -----------------------------------------------------------------------
     // Compute state and dispatch
