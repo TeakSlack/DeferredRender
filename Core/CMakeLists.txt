@@ -85,3 +85,98 @@ set_target_properties(Core PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY_DEVELOPMENT    "${CMAKE_SOURCE_DIR}/lib"
     ARCHIVE_OUTPUT_DIRECTORY_RELEASE        "${CMAKE_SOURCE_DIR}/lib"
 )
+
+# ---------------------------------------------------------------------------
+# Shader compilation via DXC
+#
+# Naming convention:  <stem>.<stage>.hlsl
+#   e.g. SkyTransmittance.cs.hlsl  ->  profile cs_6_6
+#        GBuffer.vs.hlsl           ->  profile vs_6_6
+#
+# Outputs land next to their source in Core/shaders/ so the engine can
+# locate them at runtime relative to the working directory.
+# All .hlsli files are listed as extra dependencies so any include change
+# triggers a full rebuild of affected shaders.
+# ---------------------------------------------------------------------------
+find_program(DXC_EXECUTABLE dxc
+    HINTS
+        "$ENV{VULKAN_SDK}/Bin"
+        "$ENV{VK_SDK_PATH}/Bin"
+    DOC "DirectX Shader Compiler"
+)
+
+if(NOT DXC_EXECUTABLE)
+    message(WARNING
+        "[Core] dxc not found — shaders will not be compiled automatically. "
+        "Ensure dxc.exe is on PATH or that VULKAN_SDK/VK_SDK_PATH is set.")
+else()
+    message(STATUS "[Core] DXC found: ${DXC_EXECUTABLE}")
+
+    set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+
+    file(GLOB_RECURSE CORE_HLSL_SOURCES  CONFIGURE_DEPENDS "${SHADER_DIR}/*.hlsl")
+    file(GLOB_RECURSE CORE_HLSLI_SOURCES CONFIGURE_DEPENDS "${SHADER_DIR}/*.hlsli")
+
+    set(SHADER_OUTPUTS)
+
+    foreach(HLSL IN LISTS CORE_HLSL_SOURCES)
+        get_filename_component(FULL_NAME "${HLSL}" NAME)
+
+        # Parse <stem>.<stage>.hlsl → STEM and STAGE
+        string(REGEX REPLACE "\\.hlsl$"               ""     BASE  "${FULL_NAME}")
+        string(REGEX REPLACE "^.*\\.([a-z]+)$"        "\\1"  STAGE "${BASE}")
+        string(REGEX REPLACE "^(.*)\\.([a-z]+)$"      "\\1"  STEM  "${BASE}")
+
+        set(PROFILE "${STAGE}_6_6")
+
+        if(COMPILE_WITH_VULKAN)
+            set(SPV_OUT "${SHADER_DIR}/${STEM}.${STAGE}.spv")
+            add_custom_command(
+                OUTPUT  "${SPV_OUT}"
+                COMMAND "${DXC_EXECUTABLE}"
+                        -T "${PROFILE}" -E main
+                        -spirv -fspv-target-env=vulkan1.1
+                        -fvk-b-shift 0 0
+                        -fvk-t-shift 2 0
+                        -fvk-s-shift 3 0
+                        -fvk-u-shift 4 0
+                        -I "${SHADER_DIR}"
+                        "${HLSL}"
+                        -Fo "${SPV_OUT}"
+                DEPENDS "${HLSL}" ${CORE_HLSLI_SOURCES}
+                COMMENT "HLSL -> SPIR-V: ${FULL_NAME}"
+                VERBATIM
+            )
+            list(APPEND SHADER_OUTPUTS "${SPV_OUT}")
+        endif()
+
+        if(COMPILE_WITH_DX12)
+            set(CSO_OUT "${SHADER_DIR}/${STEM}.${STAGE}.cso")
+            add_custom_command(
+                OUTPUT  "${CSO_OUT}"
+                COMMAND "${DXC_EXECUTABLE}"
+                        -T "${PROFILE}" -E main
+                        -I "${SHADER_DIR}"
+                        "${HLSL}"
+                        -Fo "${CSO_OUT}"
+                DEPENDS "${HLSL}" ${CORE_HLSLI_SOURCES}
+                COMMENT "HLSL -> DXIL: ${FULL_NAME}"
+                VERBATIM
+            )
+            list(APPEND SHADER_OUTPUTS "${CSO_OUT}")
+        endif()
+    endforeach()
+
+    # Suppress VS's built-in HLSL item handler — compilation is owned by the
+    # custom commands above. VS_TOOL_OVERRIDE "None" is required; setting
+    # HEADER_FILE_ONLY alone does not disable the built-in FXC integration.
+    set_source_files_properties(${CORE_HLSL_SOURCES} ${CORE_HLSLI_SOURCES}
+        PROPERTIES VS_TOOL_OVERRIDE "None")
+
+    add_custom_target(CoreShaders ALL
+        SOURCES ${CORE_HLSL_SOURCES} ${CORE_HLSLI_SOURCES}
+        DEPENDS ${SHADER_OUTPUTS})
+    source_group("shaders" FILES ${CORE_HLSL_SOURCES} ${CORE_HLSLI_SOURCES})
+    set_property(TARGET CoreShaders PROPERTY FOLDER "Shaders")
+    add_dependencies(Core CoreShaders)
+endif()

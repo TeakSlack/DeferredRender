@@ -159,4 +159,11 @@ private:
     std::vector<GpuTexture> m_BackBufferTextures;
 };
 
+enum class RenderBackend : uint8_t
+{
+    None,
+    D3D12,
+    Vulkan
+};
+
 #endif // NVRHI_GPU_DEVICE_H
