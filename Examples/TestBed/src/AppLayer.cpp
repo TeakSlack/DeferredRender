@@ -12,6 +12,7 @@
 #include <Window/GLFWWindow.h>
 #include <Events/ApplicationEvents.h>
 #include <Render/GpuTypes.h>
+#include <Render/BinaryLoader.h>
 
 // -------------------------------------------------------------------------
 // Framebuffer management
@@ -41,13 +42,103 @@ void AppLayer::DestroyFramebuffers()
 }
 
 // -------------------------------------------------------------------------
+// Blit pipeline
+// -------------------------------------------------------------------------
+
+void AppLayer::CreateBlitPipeline()
+{
+	// ---- Sampler (created first — MultiScatteringLUT::Init needs it) ----
+	SamplerDesc samplerDesc;
+	samplerDesc.MinFilter = Filter::Linear;
+	samplerDesc.MagFilter = Filter::Linear;
+	samplerDesc.AddressU  = AddressMode::Clamp;
+	samplerDesc.AddressV  = AddressMode::Clamp;
+	m_LinearSampler = m_GpuDevice->CreateSampler(samplerDesc);
+
+	// ---- Transmittance LUT (needed as input to MultiScatteringLUT) ----
+	TransmittanceLUT::Config transmittanceConfig;
+	transmittanceConfig.Backend    = RenderBackend::D3D12;
+	transmittanceConfig.Atmosphere = Atmosphere{};
+	m_TransmittanceLUT.Init(transmittanceConfig, m_GpuDevice, m_FrameGraph.get());
+	m_TransmittanceLUT.Compute(m_CommandContext.get());
+
+	// ---- Multi-scattering LUT ----
+	MultiScatteringLUT::Config multiScatterConfig;
+	multiScatterConfig.Backend    = RenderBackend::D3D12;
+	multiScatterConfig.Atmosphere = Atmosphere{};
+	m_MultiScatteringLUT.Init(multiScatterConfig,
+	                          m_TransmittanceLUT.LUT(), m_LinearSampler,
+	                          m_GpuDevice, m_FrameGraph.get());
+	m_MultiScatteringLUT.Compute(m_CommandContext.get());
+
+	// ---- Blit shaders ----
+	auto vsBytecode = BinaryLoader::LoadBinary("shaders/blit.vs.cso");
+	auto psBytecode = BinaryLoader::LoadBinary("shaders/blit.ps.cso");
+
+	ShaderDesc vsDesc;
+	vsDesc.Stage      = ShaderStage::Vertex;
+	vsDesc.EntryPoint = "main";
+	vsDesc.Bytecode   = vsBytecode.data();
+	vsDesc.ByteSize   = vsBytecode.size();
+	vsDesc.DebugName  = "Blit VS";
+	GpuShader vsShader = m_GpuDevice->CreateShader(vsDesc);
+
+	ShaderDesc psDesc;
+	psDesc.Stage      = ShaderStage::Pixel;
+	psDesc.EntryPoint = "main";
+	psDesc.Bytecode   = psBytecode.data();
+	psDesc.ByteSize   = psBytecode.size();
+	psDesc.DebugName  = "Blit PS";
+	GpuShader psShader = m_GpuDevice->CreateShader(psDesc);
+
+	// ---- Binding layout: t0 = LUT texture, s0 = sampler ----
+	BindingLayoutDesc layoutDesc;
+	layoutDesc.Items = {
+		BindingLayoutItem::Texture(0, ShaderStage::Pixel),
+		BindingLayoutItem::Sampler(0, ShaderStage::Pixel)
+	};
+	m_BlitLayout = m_GpuDevice->CreateBindingLayout(layoutDesc);
+
+	// ---- Binding set: blit the multi-scattering LUT output ----
+	BindingSetDesc setDesc;
+	setDesc.Items = {
+		BindingItem::Texture(0, m_MultiScatteringLUT.LUT()),
+		BindingItem::Sampler(0, m_LinearSampler)
+	};
+	m_BlitBindingSet = m_GpuDevice->CreateBindingSet(setDesc, m_BlitLayout);
+
+	// ---- Graphics pipeline (fullscreen triangle, no vertex buffer) ----
+	GraphicsPipelineDesc pipelineDesc;
+	pipelineDesc.VS                  = vsShader;
+	pipelineDesc.PS                  = psShader;
+	pipelineDesc.PrimType            = PrimitiveType::TriangleList;
+	pipelineDesc.BindingLayouts      = { m_BlitLayout };
+	pipelineDesc.Rasterizer.CullMode = CullMode::None;
+
+	m_BlitPipeline = m_GpuDevice->CreateGraphicsPipeline(pipelineDesc, m_Framebuffers[0]);
+
+	m_GpuDevice->DestroyShader(vsShader);
+	m_GpuDevice->DestroyShader(psShader);
+}
+
+void AppLayer::DestroyBlitPipeline()
+{
+	m_MultiScatteringLUT.Destroy();
+	m_TransmittanceLUT.Destroy();
+	m_GpuDevice->DestroyGraphicsPipeline(m_BlitPipeline);
+	m_GpuDevice->DestroyBindingSet(m_BlitBindingSet);
+	m_GpuDevice->DestroyBindingLayout(m_BlitLayout);
+	m_GpuDevice->DestroySampler(m_LinearSampler);
+}
+
+// -------------------------------------------------------------------------
 // Layer lifecycle
 // -------------------------------------------------------------------------
 
 void AppLayer::OnAttach()
 {
 	WindowDesc desc;
-	desc.title  = "Sky Transmittance TestBed";
+	desc.title  = "TestBed";
 	desc.width  = 1280;
 	desc.height = 720;
 	m_WindowSystem = Engine::Get().GetSubmodule<GLFWWindowSystem>();
@@ -57,8 +148,7 @@ void AppLayer::OnAttach()
 	m_GlfwWindow  = glfwWS->GetGLFWWindow(m_WindowHandle);
 
 	m_RenderDevice = std::make_unique<D3D12Device>(glfwWS->GetNativeHandle(m_WindowHandle));
-
-	m_GpuDevice = m_RenderDevice->CreateDevice();
+	m_GpuDevice    = m_RenderDevice->CreateDevice();
 
 	auto extent = m_WindowSystem->GetExtent(m_WindowHandle);
 	m_RenderDevice->CreateSwapchain((uint32_t)extent.x, (uint32_t)extent.y);
@@ -67,6 +157,7 @@ void AppLayer::OnAttach()
 	m_FrameGraph     = std::make_unique<FrameGraph>();
 
 	CreateFramebuffers();
+	CreateBlitPipeline();
 }
 
 void AppLayer::OnDetach()
@@ -74,6 +165,7 @@ void AppLayer::OnDetach()
 	if (m_GpuDevice)
 		m_GpuDevice->WaitForIdle();
 
+	DestroyBlitPipeline();
 	DestroyFramebuffers();
 
 	m_CommandContext.reset();
@@ -106,6 +198,7 @@ void AppLayer::OnUpdate(float /*deltaTime*/)
 	m_GpuDevice->RunGarbageCollection();
 
 	uint32_t imageIdx = m_RenderDevice->GetCurrentImageIndex();
+	GpuFramebuffer fb = m_Framebuffers[imageIdx];
 
 	// ---- FrameGraph ----
 	m_FrameGraph->Reset();
@@ -119,6 +212,55 @@ void AppLayer::OnUpdate(float /*deltaTime*/)
 		m_GpuDevice->GetBackBufferTextures()[imageIdx],
 		bbDesc,
 		m_FrameCount++ == 0 ? ResourceLayout::Undefined : ResourceLayout::Present);
+
+	// ---- Clear pass ----
+	struct ClearPassData { RGMutableTextureHandle target; };
+	auto& clearPass = m_FrameGraph->AddCallbackPass<ClearPassData>(
+		"Clear",
+		[&](PassBuilder& builder, ClearPassData& data)
+		{
+			data.target = builder.WriteTexture(backbuffer);
+		},
+		[fb](const ClearPassData&, const RenderPassResources&, ICommandContext* cmd)
+		{
+			RenderPassDesc passDesc;
+			passDesc.Framebuffer = fb;
+			passDesc.ClearColor  = true;
+			passDesc.ColorValue  = ClearValue{ 1.0f, 0.0f, 0.0f, 1.0f };
+			passDesc.ClearDepth  = false;
+			cmd->BeginRenderPass(passDesc);
+			cmd->EndRenderPass();
+		}
+	);
+
+	// ---- Blit pass: draw MultiScatteringLUT to backbuffer ----
+	struct BlitPassData { RGMutableTextureHandle target; };
+	m_FrameGraph->AddCallbackPass<BlitPassData>(
+		"BlitMultiScatteringLUT",
+		[&](PassBuilder& builder, BlitPassData& data)
+		{
+			data.target = builder.WriteTexture(clearPass.data.target);
+		},
+		[fb, this](const BlitPassData&, const RenderPassResources&, ICommandContext* cmd)
+		{
+			RenderPassDesc passDesc;
+			passDesc.Framebuffer = fb;
+			passDesc.ClearColor  = false;
+			cmd->BeginRenderPass(passDesc);
+
+			cmd->SetGraphicsPipeline(m_BlitPipeline);
+			cmd->SetBindingSet(m_BlitBindingSet);
+			cmd->SetViewport(0.0f, 0.0f, (float)m_Width, (float)m_Height);
+			cmd->SetScissor(0, 0, m_Width, m_Height);
+
+			DrawArgs args;
+			args.VertexCount   = 3;
+			args.InstanceCount = 1;
+			cmd->Draw(args);
+
+			cmd->EndRenderPass();
+		}
+	);
 
 	m_FrameGraph->Compile();
 

@@ -139,7 +139,7 @@ else()
             add_custom_command(
                 OUTPUT  "${SPV_OUT}"
                 COMMAND "${DXC_EXECUTABLE}"
-                        -T "${PROFILE}" -E main
+                        -T "${PROFILE}" -E Main
                         -spirv -fspv-target-env=vulkan1.1
                         -fvk-b-shift 0 0
                         -fvk-t-shift 2 0
@@ -160,7 +160,7 @@ else()
             add_custom_command(
                 OUTPUT  "${CSO_OUT}"
                 COMMAND "${DXC_EXECUTABLE}"
-                        -T "${PROFILE}" -E main
+                        -T "${PROFILE}" -E Main
                         -I "${SHADER_DIR}"
                         "${HLSL}"
                         -Fo "${CSO_OUT}"

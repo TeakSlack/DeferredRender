@@ -1,12 +1,12 @@
-#ifndef SHADER_LOADER_H
-#define SHADER_LOADER_H
+#ifndef BINARY_LOADER_H
+#define BINARY_LOADER_H
 
 #include "Util/Log.h"
 #include <vector>
 #include <filesystem>
 #include <fstream>
 
-class ShaderLoader
+class BinaryLoader
 {
 public:
 	static std::vector<uint8_t> LoadBinary(const std::filesystem::path& path)
@@ -14,7 +14,7 @@ public:
 		std::ifstream file(path, std::ios::binary | std::ios::ate);
 		if (!file)
 		{
-			const char* fullPath = std::filesystem::absolute(path).string().c_str();
+			std::string fullPath = std::filesystem::absolute(path).string();
 			LOG_ERROR_TO("shader", "Cannot open shader: {}", fullPath);
 			return {};
 		}
@@ -26,4 +26,4 @@ public:
 	}
 };
 
-#endif // SHADER_LOADER_H
+#endif // BINARY_LOADER_H

@@ -7,6 +7,8 @@
 #include <Render/IGpuDevice.h>
 #include <Render/ICommandContext.h>
 #include <Render/FrameGraph/FrameGraph.h>
+#include <Render/Sky/TransmittanceLUT.h>
+#include <Render/Sky/MultiScatteringLUT.h>
 #include <memory>
 #include <vector>
 
@@ -25,17 +27,30 @@ public:
 private:
 	void CreateFramebuffers();
 	void DestroyFramebuffers();
+	void CreateBlitPipeline();
+	void DestroyBlitPipeline();
 
 	IWindowSystem*                   m_WindowSystem  = nullptr;
 	WindowHandle                     m_WindowHandle;
 	GLFWwindow*                      m_GlfwWindow    = nullptr;
 
+	// ---- Render ----
 	std::unique_ptr<IRenderDevice>   m_RenderDevice;
 	IGpuDevice*                      m_GpuDevice     = nullptr;
 	std::unique_ptr<ICommandContext> m_CommandContext;
 	std::unique_ptr<FrameGraph>      m_FrameGraph;
 
 	std::vector<GpuFramebuffer>      m_Framebuffers;
+
+	// ---- Sky LUTs ----
+	TransmittanceLUT                 m_TransmittanceLUT;
+	MultiScatteringLUT               m_MultiScatteringLUT;
+
+	// ---- Blit pipeline ----
+	GpuGraphicsPipeline              m_BlitPipeline;
+	GpuBindingLayout                 m_BlitLayout;
+	GpuBindingSet                    m_BlitBindingSet;
+	GpuSampler                       m_LinearSampler;
 
 	bool     m_PendingResize = false;
 	uint32_t m_Width = 0, m_Height = 0;
